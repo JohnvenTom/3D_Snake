@@ -8,68 +8,69 @@ import state from './state.js';
 import { isOppositeDirection } from './utils.js';
 
 /**
- * 根据当前相机朝向计算相对方向向量（用于 Camera 模式）
- * 将 WASD 映射到最接近相机视角的 XYZ 主轴方向（严格轴向，无斜角对角）
- * W/S = 相机前方/后方最接近的水平主轴（X 或 Z），A/D = 相机左/右方，QE = 世界Y轴升降
+ * 根据当前相机朝向计算屏幕空间相对方向向量（用于 Camera 模式）
  *
- * 右方向通过叉积 forward × worldUp 计算，确保符合右手坐标系：
- *   当你面向前方时，按 D 键蛇向你的右侧移动
+ * Camera 模式的按键布局（纯屏幕空间）：
+ *   W = 屏幕上方（相机视角的"上"）
+ *   S = 屏幕下方（相机视角的"下"）
+ *   A = 屏幕左方（相机视角的"左"）
+ *   D = 屏幕右方（相机视角的"右"）
+ *   Q = 远离镜头（进入屏幕深处，即相机前方）
+ *   E = 靠近镜头（从屏幕深处出来，即相机后方）
  *
- * @param {'forward'|'back'|'left'|'right'} direction - 方向标识符
- * @returns {THREE.Vector3} 世界坐标系下的单位轴向向量（严格对齐 XYZ 轴之一）
+ * 每个方向通过计算相机的局部坐标轴向量，然后取绝对值最大的分量
+ * 映射到最近的 XYZ 主轴方向，确保蛇移动始终是轴对齐的
+ *
+ * @param {'screenUp'|'screenDown'|'screenLeft'|'screenRight'|'camAway'|'camToward'} direction - 方向标识符
+ * @returns {THREE.Vector3} 世界坐标系下的单位轴向向量（严格对齐 ±X/±Y/±Z 之一）
  */
 export function getCameraRelativeDirection(direction) {
     if (state.snakeSegments.length === 0) return new THREE.Vector3();
 
     const head = state.snakeSegments[0];
-    // 相机前方向量 = 从相机位置指向蛇头位置
+
+    // === 构建相机局部坐标系的三条轴 ===
+
+    // 前方：从相机指向蛇头（= 进入屏幕深处的方向）
     const camForward = new THREE.Vector3()
         .subVectors(head.position, state.camera.position)
         .normalize();
 
-    // 提取水平面分量（忽略 Y 轴）
-    const fx = camForward.x;
-    const fz = camForward.z;
-
-    // 判断相机前方更接近 X 轴还是 Z 轴（取绝对值大的为主轴）
-    const isXDominant = Math.abs(fx) >= Math.abs(fz);
-
-    // 根据主导轴确定前方轴向向量
-    let forwardAxis;
-
-    if (isXDominant) {
-        // 前方 ≈ X 轴方向（符号由分量决定）
-        forwardAxis = fx > 0
-            ? new THREE.Vector3(1, 0, 0)    // X+
-            : new THREE.Vector3(-1, 0, 0);  // X-
-    } else {
-        // 前方 ≈ Z 轴方向
-        forwardAxis = fz > 0
-            ? new THREE.Vector3(0, 0, 1)    // Z+
-            : new THREE.Vector3(0, 0, -1);  // Z-
-    }
-
-    // 通过叉积 forward × worldUp 计算正确的右方向（保证右手坐标系）
-    // 然后取绝对值最大的水平轴分量作为右方向的轴向映射
+    // 右方：前方向量 × 世界上方 的叉积（右手坐标系）
     const worldUp = new THREE.Vector3(0, 1, 0);
-    const rawRight = new THREE.Vector3().crossVectors(forwardAxis, worldUp);
-    const rx = rawRight.x;
-    const rz = rawRight.z;
+    const camRight = new THREE.Vector3()
+        .crossVectors(camForward, worldUp)
+        .normalize();
 
-    // 右方向：取叉积结果中绝对值更大的水平轴
-    let rightAxis;
-    if (Math.abs(rx) >= Math.abs(rz)) {
-        rightAxis = rx > 0 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(-1, 0, 0);
-    } else {
-        rightAxis = rz > 0 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 0, -1);
+    // 上方：右方向量 × 前方向量 的叉积（保证正交右手系）
+    const camUp = new THREE.Vector3()
+        .crossVectors(camRight, camForward)
+        .normalize();
+
+    // === 根据按键选择原始方向向量 ===
+    let rawDir;
+    switch (direction) {
+        case 'screenUp':    rawDir = camUp; break;         // W = 屏幕上方
+        case 'screenDown':  rawDir = camUp.clone().negate(); break; // S = 屏幕下方
+        case 'screenLeft':  rawDir = camRight.clone().negate(); break; // A = 屏幕左方
+        case 'screenRight': rawDir = camRight; break;       // D = 屏幕右方
+        case 'camAway':     rawDir = camForward; break;      // Q = 远离镜头（进深处）
+        case 'camToward':   rawDir = camForward.clone().negate(); break; // E = 靠近镜头（出深处）
+        default: return new THREE.Vector3();
     }
 
-    switch (direction) {
-        case 'forward': return forwardAxis;
-        case 'back':     return forwardAxis.clone().negate();
-        case 'left':     return rightAxis.clone().negate();
-        case 'right':    return rightAxis;
-        default:          return new THREE.Vector3();
+    // === 将方向向量吸附到最近的 XYZ 主轴 ===
+    // 取绝对值最大的分量作为主轴方向，确保蛇移动是轴对齐的
+    const ax = Math.abs(rawDir.x);
+    const ay = Math.abs(rawDir.y);
+    const az = Math.abs(rawDir.z);
+
+    if (ax >= ay && ax >= az) {
+        return new THREE.Vector3(Math.sign(rawDir.x), 0, 0);  // X 轴主导
+    } else if (ay >= ax && ay >= az) {
+        return new THREE.Vector3(0, Math.sign(rawDir.y), 0);  // Y 轴主导
+    } else {
+        return new THREE.Vector3(0, 0, Math.sign(rawDir.z));  // Z 轴主导
     }
 }
 
@@ -77,7 +78,7 @@ export function getCameraRelativeDirection(direction) {
  * 设置键盘事件监听器
  * 支持两种操作模式：
  *   - World 模式：WASD+QE 对应固定世界坐标轴（W=Z- S=Z+ A=X- D=X+ Q=Y+ E=Y-）
- *   - Camera 模式：W=镜头前方 S=镜头后方 A=左 D=右 QE=升降（相对相机视角）
+ *   - Camera 模式：W/S=屏幕上下 A/D=屏幕左右 Q/E=远离/靠近镜头（纯屏幕空间）
  *   - Tab 键或 UI 按钮可切换两种模式
  * 包含反向转向限制逻辑，防止蛇直接掉头撞向自身
  * @returns {void}
@@ -102,33 +103,39 @@ export function setupControls() {
             case 'w':
             case 'arrowup':
                 newDir = state.controlMode === 'camera'
-                    ? getCameraRelativeDirection('forward')
+                    ? getCameraRelativeDirection('screenUp')
                     : new THREE.Vector3(0, 0, -1);
                 break;
             case 's':
             case 'arrowdown':
                 newDir = state.controlMode === 'camera'
-                    ? getCameraRelativeDirection('back')
+                    ? getCameraRelativeDirection('screenDown')
                     : new THREE.Vector3(0, 0, 1);
                 break;
             case 'a':
             case 'arrowleft':
                 newDir = state.controlMode === 'camera'
-                    ? getCameraRelativeDirection('left')
+                    ? getCameraRelativeDirection('screenLeft')
                     : new THREE.Vector3(-1, 0, 0);
                 break;
             case 'd':
             case 'arrowright':
                 newDir = state.controlMode === 'camera'
-                    ? getCameraRelativeDirection('right')
+                    ? getCameraRelativeDirection('screenRight')
                     : new THREE.Vector3(1, 0, 0);
                 break;
-            // ========== QE 升降（两种模式共用绝对 Y 轴）==========
+            // ========== QE 键 ==========
             case 'q':
-                newDir = new THREE.Vector3(0, 1, 0);
+                // World 模式：Y+ 上升 | Camera 模式：远离镜头（进屏幕深处）
+                newDir = state.controlMode === 'camera'
+                    ? getCameraRelativeDirection('camAway')
+                    : new THREE.Vector3(0, 1, 0);
                 break;
             case 'e':
-                newDir = new THREE.Vector3(0, -1, 0);
+                // World 模式：Y- 下降 | Camera 模式：靠近镜头（出屏幕深处）
+                newDir = state.controlMode === 'camera'
+                    ? getCameraRelativeDirection('camToward')
+                    : new THREE.Vector3(0, -1, 0);
                 break;
             default:
                 return;
@@ -159,15 +166,21 @@ export function updateModeIndicator() {
 
     // 根据模式更新 W/S 按键提示文字
     if (labelW) {
-        labelW.textContent = state.controlMode === 'camera' ? 'Forward' : 'Z- Fwd';
+        labelW.textContent = state.controlMode === 'camera' ? '↑ Up' : 'Z- Fwd';
     }
     if (labelS) {
-        labelS.textContent = state.controlMode === 'camera' ? 'Back' : 'Z+ Back';
+        labelS.textContent = state.controlMode === 'camera' ? '↓ Down' : 'Z+ Back';
     }
 
     // 同步更新 A/D 标签
     const labelA = document.querySelector('.ctrl-item:nth-child(4) span:last-child');
     const labelD = document.querySelector('.ctrl-item:nth-child(6) span:last-child');
-    if (labelA) labelA.textContent = state.controlMode === 'camera' ? 'Left' : 'X-';
-    if (labelD) labelD.textContent = state.controlMode === 'camera' ? 'Right' : 'X+';
+    if (labelA) labelA.textContent = state.controlMode === 'camera' ? '← Left' : 'X-';
+    if (labelD) labelD.textContent = state.controlMode === 'camera' ? '→ Right' : 'X+';
+
+    // 同步更新 Q/E 标签
+    const labelQ = document.querySelector('.ctrl-item:nth-child(2) span:last-child');
+    const labelE = document.querySelector('.ctrl-item:nth-child(3) span:last-child');
+    if (labelQ) labelQ.textContent = state.controlMode === 'camera' ? 'Away' : 'Y+ Up';
+    if (labelE) labelE.textContent = state.controlMode === 'camera' ? 'Toward' : 'Y- Down';
 }

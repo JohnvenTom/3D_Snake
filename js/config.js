@@ -24,7 +24,7 @@ const CONFIG = {
     /** 最小移动间隔上限（蛇最快速度） */
     MIN_MOVE_INTERVAL: 0.1,
     /** 渲染插值基础系数（0~1，配合动态 dt 计算实际每帧 lerp 系数，值越大移动越跟手） */
-    RENDER_LERP_FACTOR: 0.32,
+    RENDER_LERP_FACTOR: 0.5,
 
     /* === 相机系统参数 === */
     /** 相机平滑跟随插值系数（0~1，越大越灵敏） */
