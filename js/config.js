@@ -16,13 +16,13 @@ const CONFIG = {
     INITIAL_LENGTH: 4,
     /**
      * 基础移动间隔（每步所需累积的时间量）
-     * 值越小蛇移动越快，每吃一个食物后此值递减以加速
+     * 值越大蛇移动越慢，每吃一个食物后此值递减以加速
      */
-    BASE_MOVE_INTERVAL: 0.12,
+    BASE_MOVE_INTERVAL: 0.28,
     /** 每吃一个食物后的加速量（从移动间隔中减去） */
-    SPEED_INCREMENT: 0.004,
+    SPEED_INCREMENT: 0.008,
     /** 最小移动间隔上限（蛇最快速度） */
-    MIN_MOVE_INTERVAL: 0.035,
+    MIN_MOVE_INTERVAL: 0.1,
     /** 渲染插值系数（0~1，越大蛇身移动看起来越跟手/越不平滑） */
     RENDER_LERP_FACTOR: 0.18,
 

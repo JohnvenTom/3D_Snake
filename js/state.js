@@ -35,12 +35,12 @@ const state = {
     stepCount: 0,             // 总移动步数（用于速度等级计算显示）
 
     /* === 相机轨道控制状态（球坐标系统） === */
-    camTheta: 0,              // 水平旋转角（绕Y轴）
-    camPhi: 0,                // 俯仰角
-    camRadius: 0,             // 相机到目标的距离
-    camTargetTheta: 0,        // 目标角度（用于平滑插值）
-    camTargetPhi: 0,          // 目标俯仰角
-    camTargetRadius: 0,       // 目标距离
+    camTheta: Math.PI / 4,              // 水平旋转角（绕Y轴）
+    camPhi: Math.PI / 3,                // 俯仰角
+    camRadius: 32,                      // 相机到目标的距离
+    camTargetTheta: Math.PI / 4,        // 目标角度（用于平滑插值）
+    camTargetPhi: Math.PI / 3,          // 目标俯仰角
+    camTargetRadius: 32,                // 目标距离
     isDragging: false,        // 是否正在拖拽鼠标
     lastMouseX: 0,            // 上一帧鼠标X
     lastMouseY: 0,            // 上一帧鼠标Y
