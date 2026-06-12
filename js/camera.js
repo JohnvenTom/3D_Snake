@@ -36,8 +36,8 @@ export function updateCamera() {
         head.position.z + offset_z
     );
 
-    // 平滑插值移动到目标位置
-    state.camera.position.lerp(targetPosition, CONFIG.CAMERA_LERP_FACTOR);
+    // 直接设置相机到目标位置（角度/距离的平滑已由上方的插值完成，无需二次 lerp）
+    state.camera.position.copy(targetPosition);
 
     // 始终看向蛇头
     state.camera.lookAt(head.position);
