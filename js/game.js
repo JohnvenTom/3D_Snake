@@ -111,12 +111,13 @@ function gameLoop(timestamp) {
                 state.foodMesh = null;
             }
             spawnFood();
-        }
-        // 收缩时使用缓入效果更新辅助线 + 食物同步缩小
-        updateAxesAnimation(state.axesAnimProgress);
-        if (state.foodMesh) {
-            const shrinkScale = Math.max(0.01, easeInCubic(state.axesAnimProgress));
-            state.foodMesh.scale.setScalar(shrinkScale);
+        } else {
+            // 仅在动画未结束时执行收缩逻辑（避免 spawnFood 后新食物被误缩放）
+            updateAxesAnimation(state.axesAnimProgress);
+            if (state.foodMesh) {
+                const shrinkScale = Math.max(0.01, easeInCubic(state.axesAnimProgress));
+                state.foodMesh.scale.setScalar(shrinkScale);
+            }
         }
     }
 
