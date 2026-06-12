@@ -46,13 +46,18 @@ export function startGame() {
     // 刷新 UI 面板数据
     updateUI();
 
-    // 启动游戏循环（先取消可能存在的旧循环）
+    // 启动游戏循环（先取消可能存在的旧循环，并重置帧时间戳）
     if (state.animationId) cancelAnimationFrame(state.animationId);
+    lastFrameTime = 0;
     gameLoop();
 }
 
+/** 上一帧时间戳（用于计算真实帧间隔 deltaTime） */
+let lastFrameTime = 0;
+
 /**
  * 主游戏循环（requestAnimationFrame 驱动，每帧执行一次）
+ * 使用 performance.now() 时间戳计算真实 deltaTime，确保步进和插值在任意刷新率下一致
  *
  * 执行顺序：
  *   1. 更新蛇身位置（步进 + 渲染插值）→ 返回是否发生步进
@@ -62,20 +67,22 @@ export function startGame() {
  *   5. 相机轨道更新
  *   6. 渲染场景
  *
- * 网格坐标系统的优势：
- *   - 碰撞检测基于精确的整数坐标匹配，不存在歧义
- *   - 不需要无敌帧、距离阈值等补丁机制
- *   - 食物只生成在空余格点上，天然安全
- *
+ * @param {number} timestamp - requestAnimationFrame 回调传入的高精度时间戳（毫秒）
  * @returns {void}
  */
-function gameLoop() {
+function gameLoop(timestamp) {
     if (!state.isGameRunning) return;
 
     state.animationId = requestAnimationFrame(gameLoop);
 
+    // 计算真实帧间隔（秒），首帧初始化并跳过
+    const deltaTime = lastFrameTime ? (timestamp - lastFrameTime) / 1000 : 1 / 60;
+    lastFrameTime = timestamp;
+    // 防止切标签页后 deltaTime 异常过大（限制最大约3帧的时间量）
+    const dt = Math.min(deltaTime, 0.05);
+
     // === 1. 更新蛇身位置（步进 + 插值） ===
-    const stepped = updateSnake();
+    const stepped = updateSnake(dt);
 
     // === 2. 辅助线动画状态机 ===
     const ANIM_SPEED = 0.03; // 动画速度（每帧进度增量）
