@@ -124,21 +124,23 @@ export function gridToWorld(gridPos) {
  * 更新蛇身位置（每帧调用，包含步进逻辑和渲染插值两部分）
  *
  * 步进逻辑：
- *   - 累积 moveTimer，当达到 moveInterval 时触发一步移动
+ *   - 使用真实 deltaTime 累积 moveTimer，达到 moveInterval 时触发一步移动
  *   - 头部向当前方向前进一格（整数坐标），身体各节依次前移
- *   - 移动后重置计时器
+ *   - 移动后重置计时器（保留余量避免时间漂移）
  *
- * 渲染插值：
+ * 渲染插值（帧率无关）：
  *   - 每帧将各节 Mesh 的渲染位置平滑地 lerp 向目标网格坐标
+ *   - lerp 系数根据 deltaTime 动态计算，确保不同刷新率下视觉速度一致
  *   - 即使没有发生步进也在执行，保证视觉连续性
  *
+ * @param {number} dt - 当前帧的真实时间间隔（秒），由 gameLoop 通过 performance.now() 计算
  * @returns {boolean} 是否在本帧发生了步进移动（用于碰撞检测时序控制）
  */
-export function updateSnake() {
+export function updateSnake(dt) {
     let stepped = false;
 
-    // === 步进移动部分 ===
-    state.moveTimer += 1 / 60; // 假设约60fps，每帧累积约16.7ms
+    // === 步进移动部分（使用真实 deltaTime） ===
+    state.moveTimer += dt;
 
     if (state.moveTimer >= state.moveInterval) {
         // 计时器到达阈值 → 触发一步移动
@@ -173,11 +175,13 @@ export function updateSnake() {
         };
     }
 
-    // === 渲染插值部分（每帧都执行） ===
-    // 将每个 Mesh 的渲染位置平滑地 lerp 向其目标网格坐标
+    // === 渲染插值部分（帧率无关的动态 lerp） ===
+    // 基于公式：1 - (1 - baseFactor) ^ (dt * 60)，在60fps下等效于 baseFactor，
+    // 高刷新率时自动增大系数保持视觉速度一致，低刷新率时减小避免跳变
+    const dynamicLerp = 1 - Math.pow(1 - CONFIG.RENDER_LERP_FACTOR, dt * 60);
     for (let i = 0; i < state.snakeSegments.length; i++) {
         const targetWorldPos = gridToWorld(state.snakeGridPositions[i]);
-        state.snakeSegments[i].position.lerp(targetWorldPos, CONFIG.RENDER_LERP_FACTOR);
+        state.snakeSegments[i].position.lerp(targetWorldPos, dynamicLerp);
     }
 
     return stepped;

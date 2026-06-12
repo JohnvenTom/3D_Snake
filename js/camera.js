@@ -7,11 +7,14 @@
 import CONFIG from './config.js';
 import state from './state.js';
 
+/** 相机 lookAt 平滑目标（模块级缓存，避免每帧因蛇头 lerp 导致视角微抖） */
+const smoothLookAt = new THREE.Vector3();
+
 /**
  * 更新相机位置（球坐标轨道控制，每帧调用）
  * 相机围绕蛇头做球面运动，使用插值实现平滑过渡效果：
  *   当前角度/距离 → 目标角度/距离（由用户拖拽/滚轮改变的目标值）
- * 最终通过 lerp 平滑移动到目标位置并始终看向蛇头
+ * lookAt 目标也经过平滑处理，避免每帧因蛇头渲染插值导致的视角微抖
  * @returns {void}
  */
 export function updateCamera() {
@@ -19,10 +22,10 @@ export function updateCamera() {
 
     const head = state.snakeSegments[0];
 
-    // 平滑插值：当前值 → 目标值（不同轴使用不同灵敏度）
-    state.camTheta += (state.camTargetTheta - state.camTheta) * 0.12;
-    state.camPhi += (state.camTargetPhi - state.camPhi) * 0.12;
-    state.camRadius += (state.camTargetRadius - state.camRadius) * 0.1;
+    // 平滑插值：当前值 → 目标值（提高系数以改善跟手性和流畅度）
+    state.camTheta += (state.camTargetTheta - state.camTheta) * 0.18;
+    state.camPhi += (state.camTargetPhi - state.camPhi) * 0.18;
+    state.camRadius += (state.camTargetRadius - state.camRadius) * 0.15;
 
     // 球坐标 → 直角坐标转换，计算相机相对于蛇头的偏移量
     const offset_x = state.camRadius * Math.sin(state.camPhi) * Math.cos(state.camTheta);
@@ -36,11 +39,12 @@ export function updateCamera() {
         head.position.z + offset_z
     );
 
-    // 平滑插值移动到目标位置
-    state.camera.position.lerp(targetPosition, CONFIG.CAMERA_LERP_FACTOR);
+    // 直接设置相机到目标位置（角度/距离的平滑已由上方的插值完成，无需二次 lerp）
+    state.camera.position.copy(targetPosition);
 
-    // 始终看向蛇头
-    state.camera.lookAt(head.position);
+    // 平滑 lookAt 目标：避免每帧因蛇头渲染位置 lerp 变化导致相机旋转硬跳
+    smoothLookAt.lerp(head.position, 0.15);
+    state.camera.lookAt(smoothLookAt);
 }
 
 /**

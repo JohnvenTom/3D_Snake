@@ -10,7 +10,11 @@ import { isOppositeDirection } from './utils.js';
 /**
  * 根据当前相机朝向计算相对方向向量（用于 Camera 模式）
  * 将 WASD 映射到最接近相机视角的 XYZ 主轴方向（严格轴向，无斜角对角）
- * W/S = 相机前方/后方最接近的水平主轴（X 或 Z），A/D = 另一条水平轴，QE = 世界Y轴升降
+ * W/S = 相机前方/后方最接近的水平主轴（X 或 Z），A/D = 相机左/右方，QE = 世界Y轴升降
+ *
+ * 右方向通过叉积 forward × worldUp 计算，确保符合右手坐标系：
+ *   当你面向前方时，按 D 键蛇向你的右侧移动
+ *
  * @param {'forward'|'back'|'left'|'right'} direction - 方向标识符
  * @returns {THREE.Vector3} 世界坐标系下的单位轴向向量（严格对齐 XYZ 轴之一）
  */
@@ -30,23 +34,34 @@ export function getCameraRelativeDirection(direction) {
     // 判断相机前方更接近 X 轴还是 Z 轴（取绝对值大的为主轴）
     const isXDominant = Math.abs(fx) >= Math.abs(fz);
 
-    // 根据主导轴确定前方和右方的轴向向量
-    let forwardAxis, rightAxis;
+    // 根据主导轴确定前方轴向向量
+    let forwardAxis;
 
     if (isXDominant) {
         // 前方 ≈ X 轴方向（符号由分量决定）
         forwardAxis = fx > 0
             ? new THREE.Vector3(1, 0, 0)    // X+
             : new THREE.Vector3(-1, 0, 0);  // X-
-        // 右方 = 对应的 Z 轴
-        rightAxis = new THREE.Vector3(0, 0, fz > 0 ? 1 : -1);
     } else {
         // 前方 ≈ Z 轴方向
         forwardAxis = fz > 0
             ? new THREE.Vector3(0, 0, 1)    // Z+
             : new THREE.Vector3(0, 0, -1);  // Z-
-        // 右方 = 对应的 X 轴
-        rightAxis = new THREE.Vector3(fx > 0 ? 1 : -1, 0, 0);
+    }
+
+    // 通过叉积 forward × worldUp 计算正确的右方向（保证右手坐标系）
+    // 然后取绝对值最大的水平轴分量作为右方向的轴向映射
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    const rawRight = new THREE.Vector3().crossVectors(forwardAxis, worldUp);
+    const rx = rawRight.x;
+    const rz = rawRight.z;
+
+    // 右方向：取叉积结果中绝对值更大的水平轴
+    let rightAxis;
+    if (Math.abs(rx) >= Math.abs(rz)) {
+        rightAxis = rx > 0 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(-1, 0, 0);
+    } else {
+        rightAxis = rz > 0 ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 0, -1);
     }
 
     switch (direction) {
