@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Snake // 三维贪吃蛇</title>
+
+    <!-- Google Fonts: Unbounded (几何粗野) + Space Mono (技术等宽) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;500;800;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- 项目样式表 -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- ===== 背景系统 ===== -->
+    <div class="bg-system" aria-hidden="true">
+        <div class="bg-gradient"></div>
+        <div class="bg-grid"></div>
+        <div class="bg-scanlines"></div>
+        <div class="corner-deco tl"></div>
+        <div class="corner-deco tr"></div>
+        <div class="corner-deco bl"></div>
+        <div class="corner-deco br"></div>
+    </div>
+
+    <!-- Three.js 游戏画布容器 -->
+    <div id="game-container" role="img" aria-label="3D贪吃蛇游戏场景"></div>
+
+    <!-- ===== UI 面板 ===== -->
+
+    <!-- 分数面板 — 左上角 -->
+    <aside class="score-panel" aria-live="polite">
+        <div class="score-label">Score</div>
+        <div class="score-value" id="score-display">0</div>
+    </aside>
+
+    <!-- 状态面板 — 右上角 -->
+    <aside class="status-panel">
+        <div class="status-row">
+            <span class="status-label">Length</span>
+            <span class="status-num" id="length-display">4</span>
+        </div>
+        <div class="status-row">
+            <span class="status-label">Speed</span>
+            <span class="status-num" id="speed-display">1.0x</span>
+        </div>
+    </aside>
+
+    <!-- 控制提示面板 — 左下角 -->
+    <nav class="controls-panel" aria-label="操作说明">
+        <div class="controls-label">Controls</div>
+        <!-- 操作模式切换器 -->
+        <div class="mode-switcher">
+            <button class="mode-btn active" id="mode-world" type="button">WORLD</button>
+            <button class="mode-btn" id="mode-camera" type="button">CAMERA</button>
+        </div>
+        <div class="mode-hint">Press Tab to switch</div>
+        <div class="controls-grid">
+            <div class="ctrl-item"><span class="key-cap">W</span><span id="label-w">Z- Fwd</span></div>
+            <div class="ctrl-item"><span class="key-cap">Q</span><span>Y+ Up</span></div>
+            <div class="ctrl-item"><span class="key-cap">E</span><span>Y- Down</span></div>
+            <div class="ctrl-item"><span class="key-cap">A</span><span>X-</span></div>
+            <div class="ctrl-item"><span class="key-cap">S</span><span id="label-s">Z+ Back</span></div>
+            <div class="ctrl-item"><span class="key-cap">D</span><span>X+</span></div>
+        </div>
+        <div class="camera-hint" style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); font-size: 9px; color: var(--text-dim); letter-spacing: 1px; display: flex; gap: 12px;">
+            <span>Drag = Rotate</span>
+            <span>Scroll = Zoom</span>
+        </div>
+    </nav>
+
+    <!-- 品牌水印 — 右下角 -->
+    <div class="brand-mark" aria-hidden="true">3D Snake v1.0</div>
+
+    <!-- ===== 开始界面 ===== -->
+    <div class="start-overlay" id="start-overlay" role="dialog" aria-labelledby="start-title-text">
+        <div class="start-modal">
+            <h1 class="start-title" id="start-title-text">3D SNAKE</h1>
+            <p class="start-subtitle">// xyz axis edition</p>
+            <button class="start-btn" id="start-btn" type="button">Launch Game</button>
+            <p class="start-hint">press <kbd>Enter</kbd> or <kbd>Space</kbd> to start</p>
+        </div>
+    </div>
+
+    <!-- ===== 游戏结束弹窗 ===== -->
+    <div class="game-over-overlay" id="game-over-overlay" role="dialog" aria-labelledby="go-final-score" aria-modal="true">
+        <div class="game-over-modal">
+            <span class="go-tag">System Failure</span>
+            <h2 class="go-title">Game Over</h2>
+            <p class="go-reason" id="go-reason">边界碰撞 / 自身碰撞</p>
+            <p class="go-score-label">Final Score</p>
+            <div class="go-score-value" id="final-score">0</div>
+            <button class="restart-btn" id="restart-btn" type="button">Play Again</button>
+        </div>
+    </div>
+
+    <!-- 应用入口（ES Module 方式加载，自动执行初始化） -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
