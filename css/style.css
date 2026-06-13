@@ -556,11 +556,12 @@ body {
 
 /* 暂停弹窗内的 GitHub Star 链接 */
 .pause-modal .github-star-link {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    margin-top: 24px;
+    width: fit-content;
+    margin: 24px auto 0;
     padding: 8px 18px;
     font-family: 'Unbounded', sans-serif;
     font-size: 10px;
