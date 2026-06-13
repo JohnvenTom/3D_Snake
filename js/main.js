@@ -5,7 +5,7 @@
  * @module main
  */
 
-import { startGame, restartGame } from './game.js';
+import { startGame, restartGame, togglePause } from './game.js';
 import state from './state.js';
 import { updateModeIndicator } from './controls.js';
 
@@ -24,6 +24,8 @@ function initDOMReferences() {
     state.dom.gameOverOverlay = document.getElementById('game-over-overlay');
     state.dom.finalScoreEl = document.getElementById('final-score');
     state.dom.restartBtn = document.getElementById('restart-btn');
+    state.dom.pauseBtn = document.getElementById('pause-btn');
+    state.dom.pauseOverlay = document.getElementById('pause-overlay');
 }
 
 /**
@@ -61,7 +63,19 @@ function bindEvents() {
                 restartGame();
             }
         }
+
+        // ESC 或 P 键：切换暂停/恢复（仅在游戏运行中生效）
+        if ((e.key === 'Escape' || e.key === 'p' || e.key === 'P') && state.isGameRunning) {
+            e.preventDefault();
+            togglePause();
+        }
     });
+
+    // 暂停按钮点击事件
+    state.dom.pauseBtn.addEventListener('click', togglePause);
+
+    // 暂停覆盖层中的恢复按钮点击事件
+    document.getElementById('resume-btn').addEventListener('click', togglePause);
 }
 
 // ==================== 入口执行 ====================

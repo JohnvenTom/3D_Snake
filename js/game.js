@@ -33,6 +33,7 @@ export function startGame() {
     // 重置游戏运行状态
     state.score = 0;
     state.isGameRunning = true;
+    state.isPaused = false;   // 重置暂停状态
 
     // 初始化游戏对象（场景 → 蛇体 → 食物）
     initScene();
@@ -80,6 +81,13 @@ function gameLoop(timestamp) {
     lastFrameTime = timestamp;
     // 防止切标签页后 deltaTime 异常过大（限制最大约3帧的时间量）
     const dt = Math.min(deltaTime, 0.05);
+
+    // === 暂停状态：跳过所有游戏逻辑，仅渲染场景和更新相机 ===
+    if (state.isPaused) {
+        updateCamera();
+        state.renderer.render(state.scene, state.camera);
+        return;
+    }
 
     // === 1. 更新蛇身位置（步进 + 插值） ===
     const stepped = updateSnake(dt);
@@ -166,6 +174,37 @@ function gameLoop(timestamp) {
 }
 
 /**
+ * 暂停游戏
+ * 切换暂停状态，显示/隐藏暂停覆盖层，切换按钮图标（暂停/播放）
+ * 暂停时游戏循环继续运行但跳过所有游戏逻辑更新，仅保留相机控制和场景渲染
+ * @returns {void}
+ */
+export function togglePause() {
+    // 仅在游戏运行中允许暂停操作
+    if (!state.isGameRunning) return;
+
+    state.isPaused = !state.isPaused;
+
+    if (state.isPaused) {
+        // 进入暂停：显示覆盖层，切换图标为"播放"
+        state.dom.pauseOverlay.classList.add('active');
+        state.dom.pauseBtn.classList.add('paused');
+        state.dom.pauseBtn.querySelector('.pause-icon').style.display = 'none';
+        state.dom.pauseBtn.querySelector('.resume-icon').style.display = 'block';
+        console.log('[PAUSE] Game paused');
+    } else {
+        // 恢复游戏：隐藏覆盖层，切换图标为"暂停"
+        state.dom.pauseOverlay.classList.remove('active');
+        state.dom.pauseBtn.classList.remove('paused');
+        state.dom.pauseBtn.querySelector('.pause-icon').style.display = 'block';
+        state.dom.pauseBtn.querySelector('.resume-icon').style.display = 'none';
+        // 重置帧时间戳以避免恢复后 deltaTime 异常
+        lastFrameTime = 0;
+        console.log('[RESUME] Game resumed');
+    }
+}
+
+/**
  * 结束游戏
  * 停止游戏循环，显示 Game Over 弹窗并展示最终得分和失败原因
  * @param {string} reason - 结束原因标识 ('boundary' = 边界碰撞 | 'self' = 自身碰撞)
@@ -173,6 +212,7 @@ function gameLoop(timestamp) {
  */
 function endGame(reason) {
     state.isGameRunning = false;
+    state.isPaused = false;  // 重置暂停状态
     state.dom.finalScoreEl.textContent = state.score;
 
     // 更新失败原因文案
