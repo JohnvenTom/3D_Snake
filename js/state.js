@@ -31,6 +31,7 @@ const state = {
     /* === 运行状态 === */
     score: 0,                 // 当前得分
     isGameRunning: false,     // 游戏是否正在运行
+    isPaused: false,          // 游戏是否处于暂停状态（运行中可切换）
     animationId: null,        // requestAnimationFrame ID
     stepCount: 0,             // 总移动步数（用于速度等级计算显示）
 
@@ -63,7 +64,9 @@ const state = {
         startBtn: null,       // 开始按钮
         gameOverOverlay: null,// 游戏结束遮罩
         finalScoreEl: null,   // 最终分数显示
-        restartBtn: null      // 重新开始按钮
+        restartBtn: null,     // 重新开始按钮
+        pauseBtn: null,       // 暂停/恢复按钮
+        pauseOverlay: null    // 暂停状态覆盖层
     }
 };
 
