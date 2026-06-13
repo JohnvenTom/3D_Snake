@@ -1,0 +1,573 @@
+/**
+ * 吃食物特效模块
+ * 管理蛇吃到食物时触发的所有视觉特效：粒子爆炸、冲击波环、能量吸收线、分数飘字、全屏闪光+震屏
+ * 所有特效均采用对象池式生命周期管理：创建 → 逐帧更新 → 到期自动销毁
+ *
+ * @module effects
+ */
+
+import CONFIG from './config.js';
+import state from './state.js';
+
+// ==================== 常量定义 ====================
+
+/** 粒子数量 */
+const PARTICLE_COUNT = 32;
+/** 粒子存活时长（秒） */
+const PARTICLE_DURATION = 0.6;
+/** 冲击波环存活时长（秒） */
+const SHOCKWAVE_DURATION = 0.7;
+/** 能量吸收线存活时长（秒） */
+const BEAM_DURATION = 0.35;
+/** 分数飘字存活时长（秒） */
+const FLOAT_TEXT_DURATION = 1.0;
+/** 震屏持续时长（秒） */
+const SHAKE_DURATION = 0.3;
+/** 震屏最大强度（世界单位） */
+const SHAKE_INTENSITY = 0.25;
+
+// ==================== 活跃特效列表 ====================
+
+/**
+ * 活跃特效数组，每个元素为一个特效对象
+ * 特效对象结构: { type: string, startTime: number, duration: number, objects: Array<THREE.Object3D>, update: Function }
+ * 每帧由 updateEffects 遍历调用 update 并清理过期特效
+ * @type {Array<Object>}
+ */
+const activeEffects = [];
+
+// ==================== 工具函数 ====================
+
+/**
+ * 获取当前时间戳（秒），用于特效生命周期计时
+ * @returns {number} 当前时间戳（秒，高精度）
+ */
+function now() {
+    return performance.now() / 1000;
+}
+
+/**
+ * 将 Three.js 世界坐标投影到屏幕 CSS 像素坐标
+ * 用于将 3D 场景中的位置映射到 DOM 元素的屏幕定位
+ * @param {THREE.Vector3} worldPos - 世界坐标位置
+ * @returns {Object|null} 屏幕坐标 {x: number, y: number}，若在相机背后则返回 null
+ */
+function projectToScreen(worldPos) {
+    if (!state.camera) return null;
+
+    const vec = worldPos.clone().project(state.camera);
+    // 投影坐标范围 -1~1，超出说明在相机背后或视野外
+    if (vec.z > 1) return null;
+
+    const container = state.dom.container;
+    if (!container) return null;
+
+    const rect = container.getBoundingClientRect();
+    return {
+        x: (vec.x * 0.5 + 0.5) * rect.width + rect.left,
+        y: (-vec.y * 0.5 + 0.5) * rect.height + rect.top
+    };
+}
+
+// ==================== 特效 A：粒子爆炸 ====================
+
+/**
+ * 创建粒子爆炸特效
+ * 在指定位置生成一组向外扩散的发光粒子，颜色从珊瑚橙渐变到荧光绿
+ * 使用 THREE.Points 实现，性能友好
+ *
+ * @param {THREE.Vector3} position - 爆发中心的世界坐标
+ * @returns {Object} 特效对象（含 particles Points 和 velocities 数组）
+ */
+function createParticleBurst(position) {
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(PARTICLE_COUNT * 3);
+    const colors = new Float32Array(PARTICLE_COUNT * 3);
+    /** 每个粒子的速度向量（世界坐标/秒） */
+    const velocities = [];
+    /** 每个粒子初始大小 */
+    const sizes = new Float32Array(PARTICLE_COUNT);
+
+    // 食物色（珊瑚橙）
+    const colorStart = new THREE.Color(CONFIG.COLOR_FOOD);
+    // 蛇头色（荧光绿）
+    const colorEnd = new THREE.Color(CONFIG.COLOR_SNAKE_HEAD);
+
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+        // 初始位置统一为爆发中心
+        positions[i * 3] = position.x;
+        positions[i * 3 + 1] = position.y;
+        positions[i * 3 + 2] = position.z;
+
+        // 球形随机方向 × 随机速度（2~5 单位/秒）
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const speed = 2 + Math.random() * 3;
+        velocities.push({
+            x: Math.sin(phi) * Math.cos(theta) * speed,
+            y: Math.sin(phi) * Math.sin(theta) * speed,
+            z: Math.cos(phi) * speed
+        });
+
+        // 颜色插值：珊瑚橙 → 荧光绿（每个粒子随机混合比例）
+        const t = Math.random();
+        const c = colorStart.clone().lerp(colorEnd, t);
+        colors[i * 3] = c.r;
+        colors[i * 3 + 1] = c.g;
+        colors[i * 3 + 2] = c.b;
+
+        // 初始大小随机
+        sizes[i] = 4 + Math.random() * 6;
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    const material = new THREE.PointsMaterial({
+        size: 0.18,
+        vertexColors: true,
+        transparent: true,
+        opacity: 1.0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        sizeAttenuation: true
+    });
+
+    const particles = new THREE.Points(geometry, material);
+    state.scene.add(particles);
+
+    return {
+        type: 'particle',
+        startTime: now(),
+        duration: PARTICLE_DURATION,
+        objects: [particles],
+        /** @type {Array<{x:number,y:number,z:number}>} */
+        data: velocities,
+
+        /**
+         * 更新粒子爆炸动画状态
+         * 粒子按各自速度向外扩散，同时缩小并透明淡出
+         * @param {number} elapsed - 特效已运行时间（秒）
+         * @param {number} progress - 生命进度 0~1（0=刚创建, 1=即将销毁）
+         * @returns {void}
+         */
+        update(elapsed, progress) {
+            const posAttr = this.objects[0].geometry.attributes.position;
+            const posArray = posAttr.array;
+            const vel = this.data;
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                // 位置 += 速度 × 时间步长
+                posArray[i * 3]     += vel[i].x * (1 / 60);
+                posArray[i * 3 + 1] += vel[i].y * (1 / 60);
+                posArray[i * 3 + 2] += vel[i].z * (1 / 60);
+            }
+
+            posAttr.needsUpdate = true;
+
+            // 整体透明度随时间衰减（先慢后快）
+            this.objects[0].material.opacity = 1 - Math.pow(progress, 1.5);
+            // 粒子大小随时间缩小
+            this.objects[0].material.size = 0.18 * (1 - progress * 0.7);
+        },
+
+        /**
+         * 销毁粒子爆炸特效资源
+         * 从场景移除 Points 对象并释放几何体/材质内存
+         * @returns {void}
+         */
+        dispose() {
+            this.objects.forEach(obj => {
+                state.scene.remove(obj);
+                obj.geometry.dispose();
+                obj.material.dispose();
+            });
+        }
+    };
+}
+
+// ==================== 特效 B：冲击波环 ====================
+
+/**
+ * 创建冲击波环特效
+ * 在食物位置生成三个轴向的霓虹圆环（XY/XZ/YZ 平面），像雷达波一样向外扩张并淡出
+ * 与现有三轴辅助线风格高度统一
+ *
+ * @param {THREE.Vector3} position - 波纹中心的世界坐标
+ * @returns {Object} 特效对象（含三个 Ring Mesh）
+ */
+function createShockwaveRings(position) {
+    const rings = [];
+    // 三轴平面配置：法向量 + 旋转角度
+    const planes = [
+        { axis: 'xy', rot: [0, 0, 0], color: CONFIG.COLOR_FOOD },           // XY面 - 珊瑚橙
+        { axis: 'xz', rot: [Math.PI / 2, 0, 0], color: CONFIG.COLOR_SNAKE_HEAD }, // XZ面 - 荧光绿
+        { axis: 'yz', rot: [0, 0, Math.PI / 2], color: 0x4d7cff }          // YZ面 - 电蓝
+    ];
+
+    planes.forEach(cfg => {
+        // 使用 RingGeometry（扁平圆环）
+        const geo = new THREE.RingGeometry(0.05, 0.15, 32);
+        const mat = new THREE.MeshBasicMaterial({
+            color: cfg.color,
+            transparent: true,
+            opacity: 0.9,
+            side: THREE.DoubleSide,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+        const ring = new THREE.Mesh(geo, mat);
+        ring.position.copy(position);
+        ring.rotation.set(...cfg.rot);
+        ring.scale.setScalar(0.01); // 初始极小
+        state.scene.add(ring);
+        rings.push(ring);
+    });
+
+    return {
+        type: 'shockwave',
+        startTime: now(),
+        duration: SHOCKWAVE_DURATION,
+        objects: rings,
+
+        /**
+         * 更新冲击波环动画状态
+         * 三个环依次延迟启动（错开节奏感），同时放大+淡出
+         * @param {number} elapsed - 特效已运行时间（秒）
+         * @param {number} progress - 生命进度 0~1
+         * @returns {void}
+         */
+        update(elapsed, progress) {
+            this.objects.forEach((ring, idx) => {
+                // 每个环延迟 0.05s 启动，形成层次感
+                const delay = idx * 0.05;
+                const localProgress = Math.max(0, Math.min(1, (elapsed - delay) / (SHOCKWAVE_DURATION - delay)));
+
+                if (localProgress <= 0) {
+                    ring.scale.setScalar(0.01);
+                    ring.material.opacity = 0;
+                    return;
+                }
+
+                // 缓动曲线：先快后慢的扩张
+                const eased = 1 - Math.pow(1 - localProgress, 2.5);
+                // 扩张到约 4 倍原始尺寸
+                ring.scale.setScalar(0.01 + eased * 4.0);
+                // 透明度：中段最亮，两头暗（抛物线衰减）
+                ring.material.opacity = 0.9 * Math.sin(localProgress * Math.PI);
+            });
+        },
+
+        /**
+         * 销毁冲击波环资源
+         * 移除三个 Ring Mesh 并释放几何体和材质
+         * @returns {void}
+         */
+        dispose() {
+            this.objects.forEach(obj => {
+                state.scene.remove(obj);
+                obj.geometry.dispose();
+                obj.material.dispose();
+            });
+        }
+    };
+}
+
+// ==================== 特效 E：能量吸收线 ====================
+
+/**
+ * 创建能量吸收线特效
+ * 在食物位置与蛇头之间生成多条霓虹光线，呈现"被吸走"的能量传输视觉效果
+ * 科技感强，强调吃食物的能量流动感
+ *
+ * @param {THREE.Vector3} foodPosition - 食物的世界坐标（线的起点）
+ * @param {THREE.Vector3} headPosition - 蛇头的世界坐标（线的终点）
+ * @returns {Object} 特效对象（含多条 Line 对象）
+ */
+function createEnergyBeams(foodPosition, headPosition) {
+    const lines = [];
+    const beamCount = 6; // 光线数量
+
+    for (let i = 0; i < beamCount; i++) {
+        // 起点：食物位置加微小随机偏移（避免完全重合）
+        const start = foodPosition.clone().add(new THREE.Vector3(
+            (Math.random() - 0.5) * 0.2,
+            (Math.random() - 0.5) * 0.2,
+            (Math.random() - 0.5) * 0.2
+        ));
+
+        // 终点：蛇头位置加微小偏移
+        const end = headPosition.clone().add(new THREE.Vector3(
+            (Math.random() - 0.5) * 0.15,
+            (Math.random() - 0.5) * 0.15,
+            (Math.random() - 0.5) * 0.15
+        ));
+
+        const geo = new THREE.BufferGeometry().setFromPoints([start, end]);
+
+        // 颜色：珊瑚橙 → 荧光绿 渐变（每条线不同混合比）
+        const t = i / beamCount;
+        const color = new THREE.Color(CONFIG.COLOR_FOOD).lerp(
+            new THREE.Color(CONFIG.COLOR_SNAKE_HEAD), t
+        );
+
+        const mat = new THREE.LineBasicMaterial({
+            color: color,
+            transparent: true,
+            opacity: 1.0,
+            blending: THREE.AdditiveBlending,
+            linewidth: 1
+        });
+
+        const line = new THREE.Line(geo, mat);
+        state.scene.add(line);
+        lines.push(line);
+    }
+
+    return {
+        type: 'beam',
+        startTime: now(),
+        duration: BEAM_DURATION,
+        objects: lines,
+
+        /**
+         * 更新能量吸收线动画状态
+         * 快速闪烁后消失，模拟能量被瞬间吸收的效果
+         * @param {number} _elapsed - 特效已运行时间（未使用，保留接口一致性）
+         * @param {number} progress - 生命进度 0~1
+         * @returns {void}
+         */
+        update(_elapsed, progress) {
+            // 快速脉冲：前30%亮度最高，之后快速衰减
+            let opacity;
+            if (progress < 0.3) {
+                opacity = 1.0;
+            } else {
+                opacity = 1.0 - ((progress - 0.3) / 0.7);
+            }
+            this.objects.forEach(line => {
+                line.material.opacity = opacity;
+            });
+        },
+
+        /**
+         * 销毁能量吸收线资源
+         * 移除所有 Line 对象并释放几何体和材质
+         * @returns {void}
+         */
+        dispose() {
+            this.objects.forEach(obj => {
+                state.scene.remove(obj);
+                obj.geometry.dispose();
+                obj.material.dispose();
+            });
+        }
+    };
+}
+
+// ==================== 特效 C：分数飘字 ====================
+
+/**
+ * 创建分数飘字特效
+ * 在食物位置的屏幕投影处生成一个 "+10" 的 DOM 浮动文字
+ * 使用 Unbounded 字体保持 UI 一致性，向上漂浮并淡出
+ *
+ * @param {THREE.Vector3} position - 飘字锚点的世界坐标
+ * @returns {Object|null} 特效对象（若投影失败返回 null）
+ */
+function createFloatingScore(position) {
+    const screenPos = projectToScreen(position);
+    if (!screenPos) return null;
+
+    // 创建 DOM 元素
+    const el = document.createElement('div');
+    el.className = 'float-score';
+    el.textContent = '+10';
+    el.style.left = `${screenPos.x}px`;
+    el.style.top = `${screenPos.y}px`;
+    document.body.appendChild(el);
+
+    // 触发 CSS 动画（通过强制 reflow 确保 class 生效）
+    void el.offsetWidth;
+    el.classList.add('active');
+
+    return {
+        type: 'floatText',
+        startTime: now(),
+        duration: FLOAT_TEXT_DURATION,
+        objects: [], // DOM 元素不归 Three.js 管理
+        domElement: el,
+
+        /**
+         * 更新分数飘字动画状态
+         * 主要由 CSS animation 驱动，此处仅负责到期清理
+         * @param {number} _elapsed - 未使用
+         * @param {number} _progress - 未使用
+         * @returns {void}
+         */
+        update(_elapsed, _progress) {
+            // 动画完全由 CSS keyframes 驱动，无需逐帧操作
+        },
+
+        /**
+         * 销毁分数飘字 DOM 元素
+         * 从 document.body 中移除飘字节点
+         * @returns {void}
+         */
+        dispose() {
+            if (this.domElement && this.domElement.parentNode) {
+                this.domElement.parentNode.removeChild(this.domElement);
+            }
+        }
+    };
+}
+
+// ==================== 特效 F：全屏闪光 + 震屏 ====================
+
+/**
+ * 触发全屏闪光效果
+ * 通过给 flash-overlay DOM 元素添加 active 类触发 CSS 闪光动画
+ * 闪光颜色为荧光绿半透明，持续时间极短（~80ms），营造打击感
+ *
+ * @returns {void}
+ */
+function triggerScreenFlash() {
+    const flashEl = document.getElementById('flash-overlay');
+    if (!flashEl) return;
+
+    // 移除旧类（允许重复触发）
+    flashEl.classList.remove('active');
+    // 强制 reflow 以重置动画
+    void flashEl.offsetWidth;
+    // 重新激活闪光
+    flashEl.classList.add('active');
+}
+
+/**
+ * 触发相机震屏效果
+ * 通过设置 state.shakeState 对象来通知 camera.js 在渲染时添加随机偏移
+ * 震屏使用指数衰减的正弦噪声，自然平滑地回归原位
+ *
+ * @returns {void}
+ */
+function triggerCameraShake() {
+    state.shakeState = {
+        startTime: now(),
+        duration: SHAKE_DURATION,
+        intensity: SHAKE_INTENSITY
+    };
+}
+
+// ==================== 公开 API ====================
+
+/**
+ * 触发完整的"吃到食物"特效组合
+ * 同时激活全部五种特效：粒子爆炸、冲击波环、能量吸收线、分数飘字、全屏闪光+震屏
+ * 此函数应在 gameLoop 的食物碰撞检测命中时调用
+ *
+ * @param {THREE.Vector3} foodPosition - 被吃掉的食物的世界坐标位置
+ * @returns {void}
+ */
+export function triggerEatEffects(foodPosition) {
+    // 获取蛇头当前位置（用于能量吸收线的终点）
+    const headPosition = state.snakeSegments.length > 0
+        ? state.snakeSegments[0].position.clone()
+        : foodPosition.clone();
+
+    // A. 粒子爆炸
+    activeEffects.push(createParticleBurst(foodPosition));
+
+    // B. 冲击波环
+    activeEffects.push(createShockwaveRings(foodPosition));
+
+    // E. 能量吸收线（食物→蛇头）
+    activeEffects.push(createEnergyBeams(foodPosition, headPosition));
+
+    // C. 分数飘字
+    const floatText = createFloatingScore(foodPosition);
+    if (floatText) activeEffects.push(floatText);
+
+    // F. 全屏闪光 + 震屏
+    triggerScreenFlash();
+    triggerCameraShake();
+
+    console.log('[EFFECTS] Eat effects triggered at', foodPosition.toArray().map(v => v.toFixed(1)));
+}
+
+/**
+ * 更新所有活跃特效的状态（每帧调用一次）
+ * 遍历活跃特效列表，调用各特效的 update 方法推进动画，
+ * 并自动检测过期特效执行 dispose 清理
+ *
+ * @param {number} _dt - 当前帧间隔（秒），供特效更新使用
+ * @returns {void}
+ */
+export function updateEffects(_dt) {
+    const currentTime = now();
+
+    // 反向遍历以便安全删除过期元素
+    for (let i = activeEffects.length - 1; i >= 0; i--) {
+        const effect = activeEffects[i];
+        const elapsed = currentTime - effect.startTime;
+        const progress = Math.min(1, elapsed / effect.duration);
+
+        // 调用特效自身的更新逻辑
+        effect.update(elapsed, progress);
+
+        // 过期则清理并移除
+        if (progress >= 1) {
+            effect.dispose();
+            activeEffects.splice(i, 1);
+        }
+    }
+}
+
+/**
+ * 获取当前震屏偏移量（供 camera.js 调用）
+ * 根据震屏状态计算当前帧应叠加的随机偏移向量
+ * 震屏结束后自动清除 state.shakeState 并返回零向量
+ *
+ * @returns {THREE.Vector3} 当前震屏偏移向量（无震屏时为零向量）
+ */
+export function getShakeOffset() {
+    if (!state.shakeState) return new THREE.Vector3(0, 0, 0);
+
+    const elapsed = now() - state.shakeState.startTime;
+    const progress = Math.min(1, elapsed / state.shakeState.duration);
+
+    if (progress >= 1) {
+        // 震屏结束，清除状态
+        state.shakeState = null;
+        return new THREE.Vector3(0, 0, 0);
+    }
+
+    // 指数衰减 + 正弦抖动：强度随时间递减，方向随机变化
+    const decay = 1 - progress;                    // 线性衰减
+    const smoothDecay = decay * decay;             // 二次缓出（更自然的减速）
+    const intensity = state.shakeState.intensity * smoothDecay;
+
+    // 基于时间的伪随机方向（每帧确定性的但看起来随机）
+    const wobbleX = Math.sin(elapsed * 40 + 1.3) * Math.cos(elapsed * 27 + 2.1);
+    const wobbleY = Math.cos(elapsed * 35 + 0.7) * Math.sin(elapsed * 22 + 3.8);
+    const wobbleZ = Math.sin(elapsed * 45 + 4.2) * Math.cos(elapsed * 31 + 1.9);
+
+    return new THREE.Vector3(
+        wobbleX * intensity,
+        wobbleY * intensity,
+        wobbleZ * intensity
+    );
+}
+
+/**
+ * 清理所有活跃特效（游戏重启时调用）
+ * 逐一销毁所有未完成的特效对象，清空活跃列表
+ * @returns {void}
+ */
+export function clearAllEffects() {
+    activeEffects.forEach(effect => {
+        try { effect.dispose(); } catch (e) { /* 忽略单次清理错误 */ }
+    });
+    activeEffects.length = 0;
+    state.shakeState = null;
+}

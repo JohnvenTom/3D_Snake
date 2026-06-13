@@ -20,6 +20,7 @@ import { checkFoodCollision, checkBoundaryCollision, checkSelfCollision } from '
 import { setupControls, updateModeIndicator } from './controls.js';
 import { updateCamera, setupCameraControls } from './camera.js';
 import { updateUI } from './ui.js';
+import { triggerEatEffects, updateEffects, clearAllEffects } from './effects.js';
 
 /**
  * 开始游戏
@@ -142,6 +143,10 @@ function gameLoop(timestamp) {
                 CONFIG.MIN_MOVE_INTERVAL,
                 state.moveInterval - CONFIG.SPEED_INCREMENT
             );
+            // 触发吃食物全套特效（粒子/冲击波/吸收线/飘字/闪光+震屏）
+            if (state.foodMesh) {
+                triggerEatEffects(state.foodMesh.position.clone());
+            }
             // 触发辅助线+食物消失动画（不立即生成新食物）
             state.axesAnimState = 'out';
             updateUI();
@@ -166,10 +171,13 @@ function gameLoop(timestamp) {
         state.foodMesh.rotation.y += 0.02;
     }
 
-    // === 5. 更新相机位置 ===
+    // === 5. 更新所有活跃特效（粒子/冲击波/吸收线/飘字等） ===
+    updateEffects(dt);
+
+    // === 6. 更新相机位置 ===
     updateCamera();
 
-    // === 6. 渲染场景 ===
+    // === 7. 渲染场景 ===
     state.renderer.render(state.scene, state.camera);
 }
 
@@ -265,6 +273,9 @@ export function restartGame() {
     state.foodAxesGroup = null;
     state.axesAnimProgress = 0;
     state.axesAnimState = 'idle';
+
+    // 清理所有活跃特效
+    clearAllEffects();
 
     // 取消旧的游戏循环
     if (state.animationId) {

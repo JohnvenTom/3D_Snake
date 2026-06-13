@@ -6,6 +6,7 @@
 
 import CONFIG from './config.js';
 import state from './state.js';
+import { getShakeOffset } from './effects.js';
 
 /** 平滑 lookAt 目标缓存向量，避免每帧因蛇头渲染位置变化导致相机旋转硬跳 */
 const smoothLookAt = new THREE.Vector3();
@@ -49,6 +50,10 @@ export function updateCamera() {
     // 相机位置也做平滑过渡（与 lookAt 使用相同量级系数，防止位置/朝向不同步）
     smoothCameraPos.lerp(targetPosition, 0.12);
     state.camera.position.copy(smoothCameraPos);
+
+    // 叠加震屏偏移（吃食物时由 effects 模块触发，自然衰减归零）
+    const shakeOffset = getShakeOffset();
+    state.camera.position.add(shakeOffset);
 
     // lookAt 目标平滑：与相机位置平滑系数匹配，确保两者同步运动
     smoothLookAt.lerp(head.position, 0.12);
