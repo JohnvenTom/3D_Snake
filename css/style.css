@@ -49,6 +49,69 @@ body {
     cursor: crosshair;
 }
 
+/* ==================== 全屏闪光特效 ==================== */
+.flash-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    pointer-events: none;
+    background: radial-gradient(
+        ellipse at center,
+        rgba(200, 255, 0, 0.2) 0%,
+        rgba(200, 255, 0, 0.05) 40%,
+        transparent 70%
+    );
+    opacity: 0;
+}
+
+.flash-overlay.active {
+    animation: flashBurst 0.08s ease-out forwards;
+}
+
+@keyframes flashBurst {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* ==================== 分数飘字特效 ==================== */
+.float-score {
+    position: fixed;
+    z-index: 950;
+    pointer-events: none;
+    font-family: 'Unbounded', sans-serif;
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--lime);
+    letter-spacing: -1px;
+    text-shadow:
+        0 0 12px rgba(200, 255, 0, 0.7),
+        0 0 28px rgba(200, 255, 0, 0.35);
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+    will-change: transform, opacity;
+}
+
+.float-score.active {
+    animation: floatScoreUp 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes floatScoreUp {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(0.5);
+    }
+    15% {
+        transform: translate(-50%, -50%) scale(1.15);
+    }
+    30% {
+        transform: translate(-50%, -55%) scale(1.0);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -120%) scale(0.85);
+    }
+}
+
 /* ==================== 游戏画布层 ==================== */
 #game-container {
     position: fixed;
