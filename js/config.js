@@ -57,16 +57,12 @@ const CONFIG = {
     COLOR_BOUNDARY: 0xc8ff00,          // 边界框
 
     /* === 障碍物系统参数 === */
-    /** 障碍物总数量（实际数量由形状尺寸决定，此值仅作参考上限） */
-    OBSTACLE_COUNT: 24,
-    /** 障碍物聚类/形状块数量 */
-    OBSTACLE_CLUSTER_COUNT: 2,
-    /** 每个障碍物形状块的尺寸 {dx, dy, dz}（格数，沿各轴的长度） */
-    OBSTACLE_SHAPE_SIZE: { dx: 4, dy: 2, dz: 3 },
+    /** 障碍物形状块数量（每个块使用一种预设结构化形状） */
+    OBSTACLE_CLUSTER_COUNT: 3,
     /** 距离初始蛇身的最小安全距离（曼哈顿距离，格数） */
     OBSTACLE_SAFE_DISTANCE_FROM_SNAKE: 6,
-    /** 聚类中心之间的最小距离（格数，确保两个形状块分开） */
-    OBSTACLE_MIN_CENTER_DISTANCE: 14,
+    /** 形状中心之间的最小距离（格数） */
+    OBSTACLE_MIN_CENTER_DISTANCE: 12,
     /** 障碍物单节视觉尺寸 */
     OBSTACLE_SIZE: 0.9,
     /** 障碍物颜色（暗红/深紫，与蛇和食物形成强对比） */

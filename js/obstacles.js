@@ -96,67 +96,184 @@ function generateClusterCenters(initialSnakePositions, clusterCount) {
 }
 
 /**
- * 在指定中心位置生成规则长方体形状的障碍物块
- * 以 center 为几何中心，按 SHAPE_SIZE 定义的尺寸填充实心立方体区域
- * 每个坐标点都经过边界检查和占用检查，确保不越界、不重叠
+ * 预定义的结构化障碍物形状模板库
+ * 每个形状是一组相对于中心点的 {x, y, z} 偏移量数组
+ * 设计原则：有明确的几何轮廓和聚集感，但不是死板的长方体
  *
  * 形状说明：
- *   - 生成一个实心长方体（轴对齐），尺寸为 dx × dy × dz 格
- *   - center 为长方体的几何中心（非角点）
- *   - 当尺寸为奇数时中心恰好落在某个格点上
- *   - 当尺寸为偶数时中心落在四个格点之间（自动取整）
+ *   - cross:    十字形（XZ平面十字 + Y轴柱体）
+ *   - lshape:   L形拐角（带厚度）
+ *   - tshape:   T形（横臂+竖干）
+ *   - zigzag:   Z形折线（3段折角）
+ *   - corner:   角落围栏（U形开口）
+ *   - plus:     加号/星形（四向延伸）
+ *   - staircase: 阶梯形状（逐级上升）
+ *   - diagonal: 对角线团块（斜向排列）
+ */
+const SHAPE_TEMPLATES = [
+    // === 1. 十字形（中心向四方向延伸） ===
+    {
+        name: 'cross',
+        offsets: [
+            // 中心柱（Y轴）
+            { x: 0, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 0, y: -1, z: 0 },
+            // X轴臂
+            { x: 1, y: 0, z: 0 }, { x: 2, y: 0, z: 0 }, { x: -1, y: 0, z: 0 }, { x: -2, y: 0, z: 0 },
+            // Z轴臂
+            { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: 2 }, { x: 0, y: 0, z: -1 }, { x: 0, y: 0, z: -2 },
+            // 臂端加厚
+            { x: 2, y: 1, z: 0 }, { x: -2, y: 1, z: 0 }, { x: 0, y: 1, z: 2 }, { x: 0, y: 1, z: -2 }
+        ]
+    },
+    // === 2. L形拐角 ===
+    {
+        name: 'lshape',
+        offsets: [
+            // 横臂
+            { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 2, y: 0, z: 0 }, { x: 3, y: 0, z: 0 },
+            { x: 0, y: 1, z: 0 }, { x: 1, y: 1, z: 0 }, { x: 2, y: 1, z: 0 }, { x: 3, y: 1, z: 0 },
+            // 竖臂（从拐角处向下延伸）
+            { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: 2 }, { x: 0, y: 0, z: 3 },
+            { x: 0, y: 1, z: 1 }, { x: 0, y: 1, z: 2 }, { x: 0, y: 1, z: 3 }
+        ]
+    },
+    // === 3. T形 ===
+    {
+        name: 'tshape',
+        offsets: [
+            // 顶部横梁
+            { x: -2, y: 1, z: 0 }, { x: -1, y: 1, z: 0 }, { x: 0, y: 1, z: 0 },
+            { x: 1, y: 1, z: 0 }, { x: 2, y: 1, z: 0 },
+            { x: -2, y: 0, z: 0 }, { x: -1, y: 0, z: 0 }, { x: 0, y: 0, z: 0 },
+            { x: 1, y: 0, z: 0 }, { x: 2, y: 0, z: 0 },
+            // 竖直主干
+            { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: 2 }, { x: 0, y: 0, z: 3 }, { x: 0, y: 0, z: 4 },
+            { x: 0, y: 1, z: 1 }, { x: 0, y: 1, z: 2 }, { x: 0, y: 1, z: 3 }, { x: 0, y: 1, z: 4 }
+        ]
+    },
+    // === 4. Z形/S形折线 ===
+    {
+        name: 'zigzag',
+        offsets: [
+            // 第一段（沿+X）
+            { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 2, y: 0, z: 0 },
+            { x: 0, y: 1, z: 0 }, { x: 1, y: 1, z: 0 }, { x: 2, y: 1, z: 0 },
+            // 第二段（对角过渡到+Z）
+            { x: 3, y: 0, z: 0 }, { x: 3, y: 0, z: 1 }, { x: 3, y: 0, z: 2 },
+            { x: 3, y: 1, z: 0 }, { x: 3, y: 1, z: 1 }, { x: 3, y: 1, z: 2 },
+            // 第三段（沿-X方向）
+            { x: 2, y: 0, z: 3 }, { x: 1, y: 0, z: 3 }, { x: 0, y: 0, z: 3 },
+            { x: 2, y: 1, z: 3 }, { x: 1, y: 1, z: 3 }, { x: 0, y: 1, z: 3 }
+        ]
+    },
+    // === 5. U形角落围栏 ===
+    {
+        name: 'corner',
+        offsets: [
+            // 左墙
+            { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: 2 }, { x: 0, y: 0, z: 3 },
+            { x: 0, y: 1, z: 0 }, { x: 0, y: 1, z: 1 }, { x: 0, y: 1, z: 2 }, { x: 0, y: 1, z: 3 },
+            // 后墙
+            { x: 1, y: 0, z: 3 }, { x: 2, y: 0, z: 3 }, { x: 3, y: 0, z: 3 },
+            { x: 1, y: 1, z: 3 }, { x: 2, y: 1, z: 3 }, { x: 3, y: 1, z: 3 },
+            // 右墙（较短，形成开口）
+            { x: 3, y: 0, z: 2 }, { x: 3, y: 0, z: 1 },
+            { x: 3, y: 1, z: 2 }, { x: 3, y: 1, z: 1 }
+        ]
+    },
+    // === 6. 加号/星形（三维延伸） ===
+    {
+        name: 'plus',
+        offsets: [
+            // 核心块（2×2×2）
+            { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 1, y: 1, z: 0 },
+            { x: 0, y: 0, z: 1 }, { x: 1, y: 0, z: 1 }, { x: 0, y: 1, z: 1 }, { x: 1, y: 1, z: 1 },
+            // 六向延伸臂
+            { x: 2, y: 0, z: 0 }, { x: 2, y: 1, z: 0 },
+            { x: -1, y: 0, z: 0 }, { x: -1, y: 1, z: 0 },
+            { x: 0, y: 0, z: 2 }, { x: 1, y: 0, z: 2 },
+            { x: 0, y: 0, z: -1 }, { x: 1, y: 0, z: -1 },
+            { x: 0, y: 2, z: 0 }, { x: 1, y: 2, z: 0 },
+            { x: 0, y: -1, z: 0 }, { x: 1, y: -1, z: 0 }
+        ]
+    },
+    // === 7. 阶梯形状 ===
+    {
+        name: 'staircase',
+        offsets: [
+            // 第一阶
+            { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 },
+            { x: 0, y: 1, z: 0 }, { x: 1, y: 1, z: 0 },
+            // 第二阶（抬高Y并前移Z）
+            { x: 2, y: 1, z: 0 }, { x: 2, y: 1, z: 1 },
+            { x: 2, y: 2, z: 0 }, { x: 2, y: 2, z: 1 },
+            // 第三阶
+            { x: 3, y: 2, z: 1 }, { x: 3, y: 2, z: 2 },
+            { x: 3, y: 3, z: 1 }, { x: 3, y: 3, z: 2 },
+            // 第四阶
+            { x: 4, y: 3, z: 2 }, { x: 4, y: 3, z: 3 },
+            { x: 4, y: 4, z: 2 }, { x: 4, y: 4, z: 3 }
+        ]
+    },
+    // === 8. 斜向团块（菱形分布） ===
+    {
+        name: 'diagonal',
+        offsets: [
+            // 中心核
+            { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }, { x: 1, y: 1, z: 0 },
+            { x: 0, y: 0, z: 1 }, { x: 1, y: 0, z: 1 }, { x: 0, y: 1, z: 1 }, { x: 1, y: 1, z: 1 },
+            // 四个对角方向的"触角"
+            { x: 2, y: 0, z: 2 }, { x: 2, y: 1, z: 2 },
+            { x: -1, y: 0, z: -1 }, { x: -1, y: 1, z: -1 },
+            { x: 2, y: 0, z: -1 }, { x: 2, y: 1, z: -1 },
+            { x: -1, y: 0, z: 2 }, { x: -1, y: 1, z: 2 },
+            // 触角尖端加粗
+            { x: 3, y: 0, z: 3 }, { x: 3, y: 1, z: 3 },
+            { x: -2, y: 0, z: -2 }, { x: -2, y: 1, z: -2 }
+        ]
+    }
+];
+
+/**
+ * 使用预设形状模板在指定中心位置生成障碍物
+ * 从 SHAPE_TEMPLATES 中随机选取一个形状，将偏移量叠加到中心坐标上
+ * 每个坐标点都经过边界检查和占用检查，确保不越界、不重叠
  *
- * @param {Object} center - 形状块的网格坐标中心 {x, y, z}
- * @param {Object} size - 形状尺寸 {dx: number, dy: number, dz: number}（格数）
+ * @param {Object} center - 形状的网格坐标中心 {x, y, z}
  * @param {Set} occupied - 已占用格子集合（用于避免重复）
  * @returns {Array} 生成的障碍物网格坐标数组
  */
-function generateShapeObstacles(center, size, occupied) {
+function generateShapeObstacles(center, occupied) {
     const obstacles = [];
     const bound = CONFIG.ARENA_SIZE;
 
-    // 计算各轴向的半长（向下取整，确保对称分布）
-    const halfX = Math.floor(size.dx / 2);
-    const halfY = Math.floor(size.dy / 2);
-    const halfZ = Math.floor(size.dz / 2);
+    // 从模板库中随机选择一个形状
+    const template = SHAPE_TEMPLATES[Math.floor(Math.random() * SHAPE_TEMPLATES.length)];
 
-    // 遍历长方体内所有整数格点
-    for (let ox = -halfX; ox <= halfX; ox++) {
-        // 处理偶数尺寸时少走一格（保持总尺寸正确）
-        const xLimit = (size.dx % 2 === 0 && ox === halfX) ? halfX - 1 : halfX;
-        if (ox > xLimit) continue;
+    // 遍历形状的所有偏移点
+    for (const offset of template.offsets) {
+        const pos = {
+            x: center.x + offset.x,
+            y: center.y + offset.y,
+            z: center.z + offset.z
+        };
 
-        for (let oy = -halfY; oy <= halfY; oy++) {
-            const yLimit = (size.dy % 2 === 0 && oy === halfY) ? halfY - 1 : halfY;
-            if (oy > yLimit) continue;
-
-            for (let oz = -halfZ; oz <= halfZ; oz++) {
-                const zLimit = (size.dz % 2 === 0 && oz === halfZ) ? halfZ - 1 : halfZ;
-                if (oz > zLimit) continue;
-
-                const pos = {
-                    x: center.x + ox,
-                    y: center.y + oy,
-                    z: center.z + oz
-                };
-
-                // 边界检查
-                if (Math.abs(pos.x) > bound || Math.abs(pos.y) > bound || Math.abs(pos.z) > bound) {
-                    continue;
-                }
-
-                // 占用检查
-                const key = `${pos.x},${pos.y},${pos.z}`;
-                if (occupied.has(key)) {
-                    continue;
-                }
-
-                occupied.add(key);
-                obstacles.push(pos);
-            }
+        // 边界检查
+        if (Math.abs(pos.x) > bound || Math.abs(pos.y) > bound || Math.abs(pos.z) > bound) {
+            continue;
         }
+
+        // 占用检查
+        const key = `${pos.x},${pos.y},${pos.z}`;
+        if (occupied.has(key)) {
+            continue;
+        }
+
+        occupied.add(key);
+        obstacles.push(pos);
     }
 
+    console.log(`[OBSTACLES] 使用形状模板: ${template.name}, 生成 ${obstacles.length} 个障碍物`);
     return obstacles;
 }
 
@@ -238,12 +355,11 @@ export function initObstacles() {
         return;
     }
 
-    // === 4. 在每个中心点生成规则长方体形状的障碍物块 ===
-    const shapeSize = CONFIG.OBSTACLE_SHAPE_SIZE;
+    // === 4. 在每个中心点使用随机形状模板生成障碍物 ===
     const allObstacles = [];
 
     shapeCenters.forEach((center) => {
-        const shapeObstacles = generateShapeObstacles(center, shapeSize, occupied);
+        const shapeObstacles = generateShapeObstacles(center, occupied);
         allObstacles.push(...shapeObstacles);
     });
 
