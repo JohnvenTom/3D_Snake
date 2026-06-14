@@ -113,31 +113,6 @@
             <h2 class="pause-title">PAUSED</h2>
             <p class="pause-hint">Press <kbd>Esc</kbd> or <kbd>P</kbd> to resume</p>
             <button class="resume-btn" id="resume-btn" type="button">Resume Game</button>
-        </div>
-    </div>
-
-    <!-- 暂停按钮 — 顶部居中 -->
-    <button class="pause-btn" id="pause-btn" type="button" title="暂停/恢复 (ESC/P)" aria-label="暂停游戏">
-        <svg class="pause-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <rect x="6" y="4" width="4" height="16" rx="1"/>
-            <rect x="14" y="4" width="4" height="16" rx="1"/>
-        </svg>
-        <svg class="resume-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display:none;">
-            <polygon points="5,3 19,12 5,21"/>
-        </svg>
-    </button>
-
-    <!-- ===== 暂停覆盖层 ===== -->
-    <div class="pause-overlay" id="pause-overlay" role="dialog" aria-label="游戏暂停">
-        <div class="pause-modal">
-            <div class="pause-indicator">
-                <div class="pause-bars">
-                    <span></span><span></span>
-                </div>
-            </div>
-            <h2 class="pause-title">PAUSED</h2>
-            <p class="pause-hint">Press <kbd>Esc</kbd> or <kbd>P</kbd> to resume</p>
-            <button class="resume-btn" id="resume-btn" type="button">Resume Game</button>
             <!-- GitHub Star 链接 -->
             <a class="github-star-link" href="https://github.com/tom1234567890/3D_Snake" target="_blank" rel="noopener noreferrer" title="Star on GitHub">
                 <svg class="gh-icon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
@@ -145,6 +120,8 @@
                 </svg>
                 <span>Star on GitHub</span>
             </a>
+            <!-- 重新开始按钮 -->
+            <button class="pause-restart-btn" id="pause-restart-btn" type="button">Restart Game</button>
         </div>
     </div>
 

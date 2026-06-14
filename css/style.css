@@ -662,6 +662,51 @@ body {
     opacity: 1;
 }
 
+/**
+ * 暂停弹窗内的重新开始按钮
+ * 使用珊瑚橙色调区分于 Resume（荧光绿），暗示"重置/破坏性"操作
+ * 切角多边形边框 + hover 发光上浮，与整体 Brutalist 风格统一
+ */
+.pause-restart-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: fit-content;
+    margin: 20px auto 0;
+    padding: 10px 24px;
+    font-family: 'Unbounded', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--coral);
+    background: transparent;
+    border: 1px solid rgba(255, 87, 51, 0.3);
+    cursor: pointer;
+    transition: all 0.25s ease;
+    clip-path: polygon(
+        0 0,
+        calc(100% - 6px) 0,
+        100% 6px,
+        100% 100%,
+        6px 100%,
+        0 calc(100% - 6px)
+    );
+}
+
+.pause-restart-btn:hover {
+    color: var(--text-bright);
+    background: rgba(255, 87, 51, 0.1);
+    border-color: var(--coral);
+    box-shadow: 0 0 16px rgba(255, 87, 51, 0.25);
+    transform: translateY(-1px);
+}
+
+.pause-restart-btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
 /* ==================== 开始界面 ==================== */
 .start-overlay {
     position: fixed;
@@ -987,6 +1032,7 @@ body {
     .pause-modal { padding: 32px 36px; }
     .pause-title { font-size: 24px; }
     .pause-modal .github-star-link { margin-top: 18px; padding: 6px 14px; font-size: 9px; }
+    .pause-restart-btn { margin-top: 14px; padding: 8px 18px; font-size: 9px; }
 }
 
 /* ==================== 工具类 ==================== */

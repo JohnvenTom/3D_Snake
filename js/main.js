@@ -76,6 +76,14 @@ function bindEvents() {
 
     // 暂停覆盖层中的恢复按钮点击事件
     document.getElementById('resume-btn').addEventListener('click', togglePause);
+
+    // 暂停覆盖层中的重新开始按钮点击事件（先取消暂停再重启游戏）
+    document.getElementById('pause-restart-btn').addEventListener('click', () => {
+        state.isPaused = false;
+        state.dom.pauseOverlay.classList.remove('active');
+        state.dom.pauseBtn.classList.remove('paused');
+        restartGame();
+    });
 }
 
 // ==================== 入口执行 ====================
