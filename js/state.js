@@ -15,12 +15,15 @@ const state = {
     /* === 游戏实体（Mesh 对象） === */
     snakeSegments: [],    // 蛇身所有节的 Mesh 数组（索引0为头部）
     foodMesh: null,       // 食物 Mesh
+    obstacleMeshes: [],   // 障碍物 Mesh 数组
 
     /* === 网格坐标系统（逻辑层，与渲染层分离） === */
     /** 蛇身每节的网格坐标数组，每个元素为 {x, y, z} 整数坐标 */
     snakeGridPositions: [],
     /** 食物的网格坐标 {x, y, z} 整数坐标 */
     foodGridPos: null,
+    /** 障碍物的网格坐标数组，每个元素为 {x, y, z} 整数坐标 */
+    obstacleGridPositions: [],
 
     /* === 步进移动控制 === */
     currentDirection: null,   // 当前移动方向 Vector3（单位向量，轴对齐）

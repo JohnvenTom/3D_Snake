@@ -58,3 +58,22 @@ export function checkSelfCollision() {
     }
     return false;
 }
+
+/**
+ * 检测蛇头是否与任何障碍物占据同一网格格点
+ * 遍历所有障碍物的网格坐标，与头部坐标进行精确匹配
+ * 碰撞到障碍物会导致游戏结束（与边界/自身碰撞同等对待）
+ * @returns {boolean} 是否撞到障碍物（头部格点与某障碍物格点完全一致）
+ */
+export function checkObstacleCollision() {
+    if (state.obstacleGridPositions.length === 0 || state.snakeGridPositions.length === 0) return false;
+    const head = state.snakeGridPositions[0];
+
+    // 遍历所有障碍物位置进行精确匹配
+    for (const obs of state.obstacleGridPositions) {
+        if (head.x === obs.x && head.y === obs.y && head.z === obs.z) {
+            return true;
+        }
+    }
+    return false;
+}

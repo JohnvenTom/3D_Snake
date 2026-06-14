@@ -16,11 +16,12 @@ import state from './state.js';
 import { initScene, onWindowResize } from './scene.js';
 import { initSnake, updateSnake, growSnake } from './snake.js';
 import { spawnFood, updateAxesAnimation, easeInCubic } from './food.js';
-import { checkFoodCollision, checkBoundaryCollision, checkSelfCollision } from './collision.js';
+import { checkFoodCollision, checkBoundaryCollision, checkSelfCollision, checkObstacleCollision } from './collision.js';
 import { setupControls, updateModeIndicator } from './controls.js';
 import { updateCamera, setupCameraControls } from './camera.js';
 import { updateUI } from './ui.js';
 import { triggerEatEffects, updateEffects, clearAllEffects } from './effects.js';
+import { initObstacles, clearObstacles } from './obstacles.js';
 
 /**
  * 开始游戏
@@ -36,10 +37,11 @@ export function startGame() {
     state.isGameRunning = true;
     state.isPaused = false;   // 重置暂停状态
 
-    // 初始化游戏对象（场景 → 蛇体 → 食物）
+    // 初始化游戏对象（场景 → 蛇体 → 食物 → 障碍物）
     initScene();
     initSnake();
     spawnFood();
+    initObstacles();  // 生成障碍物（在食物之后，确保食物位置被排除）
 
     // 绑定交互控制
     setupControls();
@@ -163,6 +165,12 @@ function gameLoop(timestamp) {
             endGame('self');
             return;
         }
+
+        // 障碍物碰撞检测
+        if (checkObstacleCollision()) {
+            endGame('obstacle');
+            return;
+        }
     }
 
     // === 4. 食物旋转自旋动画（仅非消失动画期间） ===
@@ -226,9 +234,21 @@ function endGame(reason) {
     // 更新失败原因文案
     const reasonEl = document.getElementById('go-reason');
     if (reasonEl) {
-        reasonEl.textContent = reason === 'boundary'
-            ? '边界碰撞 // Boundary Hit'
-            : '自身碰撞 // Self Collision';
+        let reasonText = '';
+        switch (reason) {
+            case 'boundary':
+                reasonText = '边界碰撞 // Boundary Hit';
+                break;
+            case 'self':
+                reasonText = '自身碰撞 // Self Collision';
+                break;
+            case 'obstacle':
+                reasonText = '障碍物碰撞 // Obstacle Hit';
+                break;
+            default:
+                reasonText = '游戏结束 // Game Over';
+        }
+        reasonEl.textContent = reasonText;
     }
 
     state.dom.gameOverOverlay.classList.add('active');
@@ -259,6 +279,9 @@ export function restartGame() {
     state.snakeGridPositions = [];
     state.foodMesh = null;
     state.foodGridPos = null;
+
+    // 清理障碍物
+    clearObstacles();
 
     // 重置相机轨道状态为初始值
     state.camTheta = CONFIG.CAMERA_THETA;
