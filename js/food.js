@@ -9,6 +9,7 @@ import CONFIG from './config.js';
 import state from './state.js';
 import { gridToWorld } from './snake.js';
 import { easeOutCubic, easeInCubic } from './utils.js';
+import { markObstaclePositions } from './obstacles.js';
 
 /**
  * 创建食物 Mesh
@@ -202,6 +203,9 @@ export function spawnFood() {
     state.snakeGridPositions.forEach(gp => {
         occupied.add(`${gp.x},${gp.y},${gp.z}`);
     });
+
+    // 添加障碍物位置到占用集（确保食物不会生成在障碍物上）
+    markObstaclePositions(occupied);
 
     // 收集所有可用的空余格子（边界范围内的整数坐标）
     const available = [];
