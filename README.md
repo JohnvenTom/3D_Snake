@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Isometric%203D%20neon%20green%20snake%20made%20of%20cubes%20in%20a%20dark%20cube%20arena%20with%20glowing%20orange%20food%20sphere%20and%20red%20obstacle%20blocks%2C%20neon%20brutalist%20arcade%20style%2C%20dark%20background%20with%20grid%20lines%2C%20volumetric%20lighting%2C%20cyberpunk%20aesthetic%2C%20high%20quality%203D%20render&image_size=landscape_16_9" width="100%" alt="3D Snake Banner">
-</p>
-
 <h1 align="center">
   <strong>3D SNAKE</strong>
 </h1>
