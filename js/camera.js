@@ -6,7 +6,7 @@
 
 import CONFIG from './config.js';
 import state from './state.js';
-import { getShakeOffset } from './effects.js';
+import { getShakeOffset, getShakeRotation, getShakeZoomPunch } from './effects.js';
 
 /** 平滑 lookAt 目标缓存向量，避免每帧因蛇头渲染位置变化导致相机旋转硬跳 */
 const smoothLookAt = new THREE.Vector3();
@@ -51,9 +51,26 @@ export function updateCamera() {
     smoothCameraPos.lerp(targetPosition, 0.12);
     state.camera.position.copy(smoothCameraPos);
 
-    // 叠加震屏偏移（吃食物时由 effects 模块触发，自然衰减归零）
+    // 叠加震屏位移偏移（吃食物时由 effects 模块触发，自然衰减归零）
     const shakeOffset = getShakeOffset();
     state.camera.position.add(shakeOffset);
+
+    // 叠加震屏旋转偏移（Z轴微转，模拟镜头被冲击的扭转感）
+    const shakeRotation = getShakeRotation();
+    if (shakeRotation !== 0) {
+        // 绕 lookAt 方向旋转相机位置
+        const rotMatrix = new THREE.Matrix4().makeRotationZ(shakeRotation);
+        const relativePos = state.camera.position.clone().sub(smoothLookAt);
+        relativePos.applyMatrix4(rotMatrix);
+        state.camera.position.copy(smoothLookAt).add(relativePos);
+    }
+
+    // 叠加镜头推拉偏移（先拉近再弹回，模拟"被击退"的纵深冲击）
+    const zoomPunch = getShakeZoomPunch();
+    if (zoomPunch !== 0) {
+        const direction = new THREE.Vector3().subVectors(state.camera.position, smoothLookAt).normalize();
+        state.camera.position.addScaledVector(direction, zoomPunch);
+    }
 
     // lookAt 目标平滑：与相机位置平滑系数匹配，确保两者同步运动
     smoothLookAt.lerp(head.position, 0.12);

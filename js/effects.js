@@ -22,9 +22,13 @@ const BEAM_DURATION = 0.35;
 /** 分数飘字存活时长（秒） */
 const FLOAT_TEXT_DURATION = 1.0;
 /** 震屏持续时长（秒） */
-const SHAKE_DURATION = 0.3;
-/** 震屏最大强度（世界单位） */
-const SHAKE_INTENSITY = 0.25;
+const SHAKE_DURATION = 0.5;
+/** 震屏最大强度（世界单位）— 暴力模式 */
+const SHAKE_INTENSITY = 1.0;
+/** 震屏最大旋转幅度（弧度） */
+const SHAKE_ROTATION_INTENSITY = 0.06;
+/** 镜头推拉强度（相机距离偏移量） */
+const SHAKE_ZOOM_PUNCH = 4.5;
 
 // ==================== 活跃特效列表 ====================
 
@@ -425,10 +429,17 @@ function createFloatingScore(position) {
 
 // ==================== 特效 F：全屏闪光 + 震屏 ====================
 
+/** 多层脉冲闪光总时长（秒） */
+const FLASH_TOTAL_DURATION = 0.45;
+
 /**
- * 触发全屏闪光效果
- * 通过给 flash-overlay DOM 元素添加 active 类触发 CSS 闪光动画
- * 闪光颜色为荧光绿半透明，持续时间极短（~80ms），营造打击感
+ * 触发多层脉冲全屏闪光效果
+ * 采用 JS 驱动的三段式节奏，比纯 CSS 动画更精确可控：
+ *   Phase 1 (0~8%)   : 强白闪 — 全白高亮覆盖，模拟街机打击的瞬间致盲感
+ *   Phase 2 (8%~30%) : 荧光绿回光 — 从白过渡到荧光绿脉冲，带径向发光
+ *   Phase 3 (30%~100%): 余辉消散 — 绿色光晕缓慢淡出，留下能量残留感
+ *
+ * 通过将闪光作为 activeEffect 管理，实现逐帧精确控制 overlay 的样式属性
  *
  * @returns {void}
  */
@@ -436,18 +447,94 @@ function triggerScreenFlash() {
     const flashEl = document.getElementById('flash-overlay');
     if (!flashEl) return;
 
-    // 移除旧类（允许重复触发）
+    // 重置到初始状态
     flashEl.classList.remove('active');
-    // 强制 reflow 以重置动画
-    void flashEl.offsetWidth;
-    // 重新激活闪光
-    flashEl.classList.add('active');
+    void flashEl.offsetWidth; // 强制 reflow 重置 CSS 动画
+
+    // 创建 JS 驱动的闪光特效对象，加入活跃列表逐帧更新
+    activeEffects.push({
+        type: 'screenFlash',
+        startTime: now(),
+        duration: FLASH_TOTAL_DURATION,
+        objects: [],
+        domElement: flashEl,
+
+        /**
+         * 逐帧更新闪光覆盖层的视觉状态
+         * 根据当前进度处于不同阶段，分别控制背景色、透明度和混合模式
+         * @param {number} elapsed - 特效已运行时间（秒）
+         * @param {number} progress - 生命进度 0~1
+         * @returns {void}
+         */
+        update(elapsed, progress) {
+            const el = this.domElement;
+
+            if (progress < 0.08) {
+                // === Phase 1: 强白闪 (0~8%) ===
+                // 纯白全覆盖，最高亮度，营造"被击中"的视觉冲击
+                const p = progress / 0.08;
+                // 快速升到顶峰再开始下降
+                const intensity = Math.sin(p * Math.PI * 0.5); // 0→1
+                el.style.background = `rgba(255, 255, 255, ${intensity * 0.55})`;
+                el.style.opacity = '1';
+                el.style.mixBlendMode = 'normal';
+            } else if (progress < 0.30) {
+                // === Phase 2: 荧光绿回光 (8%~30%) ===
+                // 白→绿过渡 + 径向发光，能量吸收后的颜色转换
+                const localP = (progress - 0.08) / 0.22; // 归一化到 0~1
+                // 先保持一段高强度再衰减：用 bell 曲线
+                const bell = Math.sin(localP * Math.PI); // 0→1→0
+                el.style.background = `
+                    radial-gradient(
+                        ellipse 120% 100% at center,
+                        rgba(200, 255, 0, ${bell * 0.45}) 0%,
+                        rgba(200, 255, 0, ${bell * 0.15}) 35%,
+                        rgba(77, 124, 255, ${bell * 0.08}) 60%,
+                        transparent 75%
+                    )
+                `;
+                el.style.opacity = String(0.85 * bell + 0.15);
+                el.style.mixBlendMode = 'screen';
+            } else {
+                // === Phase 3: 余辉消散 (30%~100%) ===
+                // 缓慢淡出的绿色光晕残留
+                const localP = (progress - 0.30) / 0.70; // 0~1
+                const fade = 1 - localP; // 1→0
+                const smoothFade = fade * fade * fade; // 三次缓出（更自然的消散）
+                el.style.background = `
+                    radial-gradient(
+                        ellipse 150% 120% at center,
+                        rgba(200, 255, 0, ${smoothFade * 0.12}) 0%,
+                        rgba(200, 255, 0, ${smoothFade * 0.04}) 40%,
+                        transparent 65%
+                    )
+                `;
+                el.style.opacity = String(smoothFade);
+                el.style.mixBlendMode = 'screen';
+            }
+        },
+
+        /**
+         * 闪光结束后重置 DOM 元素样式到默认状态
+         * @returns {void}
+         */
+        dispose() {
+            if (this.domElement) {
+                this.domElement.style.background = '';
+                this.domElement.style.opacity = '';
+                this.domElement.style.mixBlendMode = '';
+                this.domElement.classList.remove('active');
+            }
+        }
+    });
 }
 
 /**
- * 触发相机震屏效果
- * 通过设置 state.shakeState 对象来通知 camera.js 在渲染时添加随机偏移
- * 震屏使用指数衰减的正弦噪声，自然平滑地回归原位
+ * 触发暴力震屏效果（含位置抖动 + 旋转抖动 + 镜头推拉）
+ * 通过设置 state.shakeState 对象通知 camera.js 在渲染时叠加三组偏移：
+ *   - 位移偏移：XYZ 三轴随机高频抖动，指数衰减
+ *   - 旋转偏移：Z 轴微转，模拟镜头被冲击的扭转感
+ *   - 推拉偏移：相机距离先瞬间拉近再弹回，模拟"被击退"的视觉纵深
  *
  * @returns {void}
  */
@@ -455,7 +542,9 @@ function triggerCameraShake() {
     state.shakeState = {
         startTime: now(),
         duration: SHAKE_DURATION,
-        intensity: SHAKE_INTENSITY
+        intensity: SHAKE_INTENSITY,
+        rotationIntensity: SHAKE_ROTATION_INTENSITY,
+        zoomPunch: SHAKE_ZOOM_PUNCH
     };
 }
 
@@ -524,11 +613,11 @@ export function updateEffects(_dt) {
 }
 
 /**
- * 获取当前震屏偏移量（供 camera.js 调用）
- * 根据震屏状态计算当前帧应叠加的随机偏移向量
+ * 获取当前震屏位移偏移量（供 camera.js 调用）
+ * 暴力模式：高频正弦噪声 + 二次缓出衰减，强度为原版 2.2 倍
  * 震屏结束后自动清除 state.shakeState 并返回零向量
  *
- * @returns {THREE.Vector3} 当前震屏偏移向量（无震屏时为零向量）
+ * @returns {THREE.Vector3} 当前震屏位移偏移向量（无震屏时为零向量）
  */
 export function getShakeOffset() {
     if (!state.shakeState) return new THREE.Vector3(0, 0, 0);
@@ -537,26 +626,78 @@ export function getShakeOffset() {
     const progress = Math.min(1, elapsed / state.shakeState.duration);
 
     if (progress >= 1) {
-        // 震屏结束，清除状态
         state.shakeState = null;
         return new THREE.Vector3(0, 0, 0);
     }
 
-    // 指数衰减 + 正弦抖动：强度随时间递减，方向随机变化
-    const decay = 1 - progress;                    // 线性衰减
-    const smoothDecay = decay * decay;             // 二次缓出（更自然的减速）
-    const intensity = state.shakeState.intensity * smoothDecay;
+    // 二次缓出衰减（暴力但自然减速）
+    const decay = (1 - progress) * (1 - progress);
+    const intensity = state.shakeState.intensity * decay;
 
-    // 基于时间的伪随机方向（每帧确定性的但看起来随机）
-    const wobbleX = Math.sin(elapsed * 40 + 1.3) * Math.cos(elapsed * 27 + 2.1);
-    const wobbleY = Math.cos(elapsed * 35 + 0.7) * Math.sin(elapsed * 22 + 3.8);
-    const wobbleZ = Math.sin(elapsed * 45 + 4.2) * Math.cos(elapsed * 31 + 1.9);
-
+    // 高频多轴抖动：不同频率叠加产生不规则震动感
+    const t = elapsed;
     return new THREE.Vector3(
-        wobbleX * intensity,
-        wobbleY * intensity,
-        wobbleZ * intensity
+        (Math.sin(t * 48) * Math.cos(t * 31) + Math.sin(t * 17) * 0.5) * intensity,
+        (Math.cos(t * 42) * Math.sin(t * 25) + Math.cos(t * 13) * 0.5) * intensity,
+        (Math.sin(t * 55) * Math.cos(t * 37) + Math.sin(t * 19) * 0.4) * intensity * 0.6
     );
+}
+
+/**
+ * 获取当前震屏旋转偏移量（供 camera.js 调用）
+ * Z 轴微转模拟镜头被冲击的扭转感，与位移偏移使用独立频率
+ *
+ * @returns {number} 当前 Z 轴旋转偏移弧度（无震屏时为 0）
+ */
+export function getShakeRotation() {
+    if (!state.shakeState) return 0;
+
+    const elapsed = now() - state.shakeState.startTime;
+    const progress = Math.min(1, elapsed / state.shakeState.duration);
+
+    if (progress >= 1) return 0;
+
+    // 独立的衰减和频率，避免与位移同步导致机械感
+    const decay = (1 - progress) * (1 - progress);
+    const rotIntensity = state.shakeState.rotationIntensity * decay;
+
+    // 双频叠加产生不规则的扭转抖动
+    return (
+        Math.sin(elapsed * 35 + 1.7) * Math.cos(elapsed * 22 + 3.1) +
+        Math.sin(elapsed * 58 + 4.3) * 0.35
+    ) * rotIntensity;
+}
+
+/**
+ * 获取当前镜头推拉偏移量（供 camera.js 调用）
+ * 相机距离先瞬间拉近（zoom in punch）再弹回原位
+ * 模拟"被击退"的视觉纵深冲击，前 30% 为拉近段，之后为回弹段
+ *
+ * @returns {number} 当前相机半径偏移量（负值=拉近，正值=拉远/恢复）
+ */
+export function getShakeZoomPunch() {
+    if (!state.shakeState) return 0;
+
+    const elapsed = now() - state.shakeState.startTime;
+    const progress = Math.min(1, elapsed / state.shakeState.duration);
+
+    if (progress >= 1) return 0;
+
+    const zoomPunch = state.shakeState.zoomPunch;
+
+    if (progress < 0.18) {
+        // 前段：快速拉近（zoom in），模拟"被击中"的视觉冲击
+        const p = progress / 0.18; // 0→1
+        // 弹性曲线：快速冲入+轻微过冲
+        const ease = Math.sin(p * Math.PI * 0.5);
+        return -zoomPunch * ease; // 负值 = 镜头拉近
+    } else {
+        // 后段：弹性回弹到原位
+        const localP = (progress - 0.18) / 0.82; // 0→1
+        // 弹性过冲后归位：先 overshoot 再收敛
+        const elastic = Math.pow(2, -10 * localP) * Math.sin((localP * 10 - 0.75) * (2 * Math.PI / 3)) + 1;
+        return -zoomPunch * (1 - elastic);
+    }
 }
 
 /**
