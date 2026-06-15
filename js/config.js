@@ -23,6 +23,8 @@ const CONFIG = {
     SPEED_INCREMENT: 0.008,
     /** 最小移动间隔上限（蛇最快速度） */
     MIN_MOVE_INTERVAL: 0.1,
+    /** 按住空格加速倍率（moveInterval 除以此值，值越大越快） */
+    SPEED_BOOST_MULTIPLIER: 2.0,
     /** 渲染插值基础系数（0~1，配合动态 dt 计算实际每帧 lerp 系数，值越大移动越跟手） */
     RENDER_LERP_FACTOR: 0.5,
 

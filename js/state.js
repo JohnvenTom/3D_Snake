@@ -35,6 +35,7 @@ const state = {
     score: 0,                 // 当前得分
     isGameRunning: false,     // 游戏是否正在运行
     isPaused: false,          // 游戏是否处于暂停状态（运行中可切换）
+    isSpeedBoost: false,      // 是否处于加速状态（按住空格）
     animationId: null,        // requestAnimationFrame ID
     stepCount: 0,             // 总移动步数（用于速度等级计算显示）
 
