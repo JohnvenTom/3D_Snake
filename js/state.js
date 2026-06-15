@@ -28,6 +28,7 @@ const state = {
     /* === 步进移动控制 === */
     currentDirection: null,   // 当前移动方向 Vector3（单位向量，轴对齐）
     nextDirection: null,      // 下一帧方向 Vector3（缓冲用，防止一帧内多次转向）
+    directionBuffer: [],      // 方向预输入队列（支持连续按键，最多 DIRECTION_BUFFER_SIZE 个）
     moveTimer: 0,             // 移动计时器（累积值，达到 moveInterval 时触发一步）
     moveInterval: 0,          // 当前每步所需时间间隔（越小越快）
 

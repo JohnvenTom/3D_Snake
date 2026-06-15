@@ -26,7 +26,9 @@ const CONFIG = {
     /** 按住空格加速倍率（moveInterval 除以此值，值越大越快） */
     SPEED_BOOST_MULTIPLIER: 2.0,
     /** 渲染插值基础系数（0~1，配合动态 dt 计算实际每帧 lerp 系数，值越大移动越跟手） */
-    RENDER_LERP_FACTOR: 0.5,
+    RENDER_LERP_FACTOR: 0.75,
+    /** 方向缓冲队列最大长度（支持连续按键预输入，值越大连按越跟手） */
+    DIRECTION_BUFFER_SIZE: 3,
 
     /* === 相机系统参数 === */
     /** 相机平滑跟随插值系数（0~1，越大越灵敏） */

@@ -7,6 +7,7 @@
 
 import CONFIG from './config.js';
 import state from './state.js';
+import { isOppositeDirection } from './utils.js';
 
 /**
  * 创建蛇头 Mesh
@@ -77,6 +78,8 @@ export function initSnake() {
     state.snakeSegments.forEach(seg => state.scene.remove(seg));
     state.snakeSegments = [];
     state.snakeGridPositions = [];
+    // 清空方向缓冲队列（防止残留的预输入影响新游戏）
+    state.directionBuffer = [];
 
     // 生成初始蛇身（沿 X 轴排列，每节间隔一格）
     for (let i = 0; i < CONFIG.INITIAL_LENGTH; i++) {
@@ -148,8 +151,23 @@ export function updateSnake(dt) {
         stepped = true;
         state.stepCount++;
 
-        // 将缓冲方向确认为当前方向
-        state.currentDirection.copy(state.nextDirection);
+        // 从方向缓冲队列中取出下一个方向（支持连续按键预输入）
+        if (state.directionBuffer.length > 0) {
+            const bufferedDir = state.directionBuffer.shift();
+            // 二次反向检查：防止缓冲的方向在延迟后变成非法（如蛇已移动到新位置）
+            if (!isOppositeDirection(bufferedDir, state.currentDirection)) {
+                state.currentDirection.copy(bufferedDir);
+            }
+            // 更新 nextDirection 为新的队首（或保持当前方向）
+            state.nextDirection.copy(
+                state.directionBuffer.length > 0
+                    ? state.directionBuffer[0]
+                    : state.currentDirection
+            );
+        } else {
+            // 队列为空时使用 nextDirection（兼容旧逻辑）
+            state.currentDirection.copy(state.nextDirection);
+        }
 
         // 保存头部当前网格坐标（增长时尾部需要停留在该位置）
         const oldHeadGrid = { ...state.snakeGridPositions[0] };

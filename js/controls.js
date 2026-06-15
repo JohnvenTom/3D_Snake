@@ -5,6 +5,7 @@
  */
 
 import state from './state.js';
+import CONFIG from './config.js';
 import { isOppositeDirection } from './utils.js';
 
 /**
@@ -150,8 +151,19 @@ export function setupControls() {
         }
 
         // 反向转向限制：新方向不能与当前方向相反（防止直接掉头）
+        // 将合法方向推入预输入缓冲队列（支持连续按键）
         if (newDir && !isOppositeDirection(newDir, state.currentDirection)) {
-            state.nextDirection.copy(newDir);
+            // 队列满时移除最旧的输入
+            if (state.directionBuffer.length >= CONFIG.DIRECTION_BUFFER_SIZE) {
+                state.directionBuffer.shift();
+            }
+            // 避免推入与队尾相同的重复方向
+            const lastInQueue = state.directionBuffer[state.directionBuffer.length - 1];
+            if (!lastInQueue || (lastInQueue.x !== newDir.x || lastInQueue.y !== newDir.y || lastInQueue.z !== newDir.z)) {
+                state.directionBuffer.push(newDir.clone());
+            }
+            // 立即更新 nextDirection 为队首（保证最快响应）
+            state.nextDirection.copy(state.directionBuffer[0]);
         }
     });
 
