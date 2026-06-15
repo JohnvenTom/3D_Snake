@@ -11,10 +11,12 @@ import state from './state.js';
 
 // ==================== 常量定义 ====================
 
-/** 粒子数量 */
-const PARTICLE_COUNT = 32;
+/** 粒子数量 — 内核火花 + 外围碎片双层 */
+const PARTICLE_COUNT = 72;
+/** 内核高亮粒子数量 */
+const CORE_PARTICLE_COUNT = 16;
 /** 粒子存活时长（秒） */
-const PARTICLE_DURATION = 0.6;
+const PARTICLE_DURATION = 0.9;
 /** 冲击波环存活时长（秒） */
 const SHOCKWAVE_DURATION = 0.7;
 /** 能量吸收线存活时长（秒） */
@@ -76,109 +78,281 @@ function projectToScreen(worldPos) {
 // ==================== 特效 A：粒子爆炸 ====================
 
 /**
- * 创建粒子爆炸特效
- * 在指定位置生成一组向外扩散的发光粒子，颜色从珊瑚橙渐变到荧光绿
- * 使用 THREE.Points 实现，性能友好
+ * 创建粒子爆炸特效（双层：内核火花 + 外围碎片）
+ *
+ * 视觉层次设计：
+ *   Layer 1 — 内核火花（16颗）：白热色、高速、大尺寸，模拟爆炸核心的高温喷射
+ *   Layer 2 — 外围碎片（56颗）：橙绿渐变色、中速带重力和阻力，自然抛物线散落
+ *
+ * 物理特性：
+ *   - 粒子速度随时间衰减（空气阻力），越往后越慢
+ *   - 外围粒子受轻微重力影响，呈抛物线下坠
+ *   - 内核粒子无重力，纯径向高速喷射
+ *   - 每个粒子独立的大小和颜色，避免单调感
  *
  * @param {THREE.Vector3} position - 爆发中心的世界坐标
- * @returns {Object} 特效对象（含 particles Points 和 velocities 数组）
+ * @returns {Object} 特效对象（含多个 Points 对象 + 中心闪光球）
  */
 function createParticleBurst(position) {
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(PARTICLE_COUNT * 3);
-    const colors = new Float32Array(PARTICLE_COUNT * 3);
-    /** 每个粒子的速度向量（世界坐标/秒） */
-    const velocities = [];
-    /** 每个粒子初始大小 */
-    const sizes = new Float32Array(PARTICLE_COUNT);
+    const allObjects = [];
+    const allVelocities = [];
 
     // 食物色（珊瑚橙）
-    const colorStart = new THREE.Color(CONFIG.COLOR_FOOD);
+    const colorFood = new THREE.Color(CONFIG.COLOR_FOOD);
     // 蛇头色（荧光绿）
-    const colorEnd = new THREE.Color(CONFIG.COLOR_SNAKE_HEAD);
+    const colorSnake = new THREE.Color(CONFIG.COLOR_SNAKE_HEAD);
+    // 白热核心色
+    const colorWhite = new THREE.Color(0xffffff);
+    // 金黄色（中间过渡）
+    const colorGold = new THREE.Color(0xffcc00);
 
-    for (let i = 0; i < PARTICLE_COUNT; i++) {
-        // 初始位置统一为爆发中心
-        positions[i * 3] = position.x;
-        positions[i * 3 + 1] = position.y;
-        positions[i * 3 + 2] = position.z;
+    // ==================== Layer 1: 内核高亮火花 ====================
+    {
+        const count = CORE_PARTICLE_COUNT;
+        const geo = new THREE.BufferGeometry();
+        const positions = new Float32Array(count * 3);
+        const colors = new Float32Array(count * 3);
+        const velocities = [];
 
-        // 球形随机方向 × 随机速度（2~5 单位/秒）
-        const theta = Math.random() * Math.PI * 2;
-        const phi = Math.acos(2 * Math.random() - 1);
-        const speed = 2 + Math.random() * 3;
-        velocities.push({
-            x: Math.sin(phi) * Math.cos(theta) * speed,
-            y: Math.sin(phi) * Math.sin(theta) * speed,
-            z: Math.cos(phi) * speed
+        for (let i = 0; i < count; i++) {
+            positions[i * 3]     = position.x;
+            positions[i * 3 + 1] = position.y;
+            positions[i * 3 + 2] = position.z;
+
+            // 高速径向喷射（8~14 单位/秒），球形均匀分布
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const speed = 8 + Math.random() * 6;
+            velocities.push({
+                x: Math.sin(phi) * Math.cos(theta) * speed,
+                y: Math.sin(phi) * Math.sin(theta) * speed,
+                z: Math.cos(phi) * speed,
+                // 每颗火花独立的基础大小（用于 update 时差异化缩放）
+                baseSize: 0.28 + Math.random() * 0.22,
+                // 是否为"拖尾型"粒子（更亮更长）
+                isStreak: Math.random() > 0.5
+            });
+
+            // 颜色：白热 → 金黄 → 橙色 随机混合
+            const colorRoll = Math.random();
+            let c;
+            if (colorRoll < 0.35) {
+                c = colorWhite.clone();                    // 35% 纯白
+            } else if (colorRoll < 0.7) {
+                c = colorGold.clone().lerp(colorWhite, 0.4); // 35% 金白
+            } else {
+                c = colorFood.clone().lerp(colorGold, 0.5);   // 30% 橙金
+            }
+            colors[i * 3]     = c.r;
+            colors[i * 3 + 1] = c.g;
+            colors[i * 3 + 2] = c.b;
+        }
+
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geo.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
+
+        const mat = new THREE.PointsMaterial({
+            size: 0.38,
+            vertexColors: true,
+            transparent: true,
+            opacity: 1.0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            sizeAttenuation: true
         });
 
-        // 颜色插值：珊瑚橙 → 荧光绿（每个粒子随机混合比例）
-        const t = Math.random();
-        const c = colorStart.clone().lerp(colorEnd, t);
-        colors[i * 3] = c.r;
-        colors[i * 3 + 1] = c.g;
-        colors[i * 3 + 2] = c.b;
-
-        // 初始大小随机
-        sizes[i] = 4 + Math.random() * 6;
+        const corePoints = new THREE.Points(geo, mat);
+        state.scene.add(corePoints);
+        allObjects.push(corePoints);
+        allVelocities.push(...velocities);
     }
 
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+    // ==================== Layer 2: 外围碎片 ====================
+    {
+        const count = PARTICLE_COUNT - CORE_PARTICLE_COUNT;
+        const geo = new THREE.BufferGeometry();
+        const positions = new Float32Array(count * 3);
+        const colors = new Float32Array(count * 3);
+        const velocities = [];
 
-    const material = new THREE.PointsMaterial({
-        size: 0.18,
-        vertexColors: true,
+        for (let i = 0; i < count; i++) {
+            positions[i * 3]     = position.x + (Math.random() - 0.5) * 0.15;
+            positions[i * 3 + 1] = position.y + (Math.random() - 0.5) * 0.15;
+            positions[i * 3 + 2] = position.z + (Math.random() - 0.5) * 0.15;
+
+            // 中速喷射（3~8 单位/秒），方向略偏随机
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            const speed = 3 + Math.random() * 5;
+            velocities.push({
+                x: Math.sin(phi) * Math.cos(theta) * speed,
+                y: Math.sin(phi) * Math.sin(theta) * speed,
+                z: Math.cos(phi) * speed,
+                baseSize: 0.08 + Math.random() * 0.18,
+                isStreak: false
+            });
+
+            // 颜色：珊瑚橙 → 荧光绿 渐变谱，每个粒子不同位置
+            const t = Math.random();
+            let c;
+            if (t < 0.4) {
+                c = colorFood.clone();                          // 40% 珊瑚橙
+            } else if (t < 0.75) {
+                c = colorFood.clone().lerp(colorSnake, t);      // 35% 橙绿混合
+            } else {
+                c = colorSnake.clone().lerp(new THREE.Color(0x4d7cff), (t - 0.75) * 4); // 25% 绿蓝尾
+            }
+            colors[i * 3]     = c.r;
+            colors[i * 3 + 1] = c.g;
+            colors[i * 3 + 2] = c.b;
+        }
+
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geo.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
+
+        const mat = new THREE.PointsMaterial({
+            size: 0.16,
+            vertexColors: true,
+            transparent: true,
+            opacity: 1.0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            sizeAttenuation: true
+        });
+
+        const debrisPoints = new THREE.Points(geo, mat);
+        state.scene.add(debrisPoints);
+        allObjects.push(debrisPoints);
+        allVelocities.push(...velocities);
+    }
+
+    // ==================== Layer 3: 中心闪光球 ====================
+    // 一个快速膨胀并消失的发光球体，作为爆炸的"起爆点"视觉锚点
+    const flashGeo = new THREE.SphereGeometry(0.12, 12, 12);
+    const flashMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
         transparent: true,
         opacity: 1.0,
         blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        sizeAttenuation: true
+        depthWrite: false
     });
-
-    const particles = new THREE.Points(geometry, material);
-    state.scene.add(particles);
+    const flashSphere = new THREE.Mesh(flashGeo, flashMat);
+    flashSphere.position.copy(position);
+    flashSphere.scale.setScalar(0.01); // 初始极小
+    state.scene.add(flashSphere);
+    allObjects.push(flashSphere);
 
     return {
         type: 'particle',
         startTime: now(),
         duration: PARTICLE_DURATION,
-        objects: [particles],
-        /** @type {Array<{x:number,y:number,z:number}>} */
-        data: velocities,
+        objects: allObjects,
+        /** @type {Array<{x:number,y:number,z:number,baseSize:number,isStreak:boolean}>} */
+        data: allVelocities,
 
         /**
-         * 更新粒子爆炸动画状态
-         * 粒子按各自速度向外扩散，同时缩小并透明淡出
+         * 更新粒子爆炸动画状态（每帧调用）
+         * 分三层独立更新：
+         *   - 内核火花：高速扩散+快速缩小+亮度骤降（前50%生命周期活跃）
+         *   - 外围碎片：中速扩散+重力下落+空气阻力减速+缓慢淡出
+         *   - 中心闪光球：瞬间膨胀到最大→收缩消失（仅前20%活跃）
+         *
          * @param {number} elapsed - 特效已运行时间（秒）
          * @param {number} progress - 生命进度 0~1（0=刚创建, 1=即将销毁）
          * @returns {void}
          */
         update(elapsed, progress) {
-            const posAttr = this.objects[0].geometry.attributes.position;
-            const posArray = posAttr.array;
+            const dt = 1 / 60; // 固定时间步长保证一致性
             const vel = this.data;
 
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                // 位置 += 速度 × 时间步长
-                posArray[i * 3]     += vel[i].x * (1 / 60);
-                posArray[i * 3 + 1] += vel[i].y * (1 / 60);
-                posArray[i * 3 + 2] += vel[i].z * (1 / 60);
+            // --- 更新 Layer 1: 内核火花 (索引 0 ~ CORE_PARTICLE_COUNT-1) ---
+            const coreObj = this.objects[0];
+            const corePosAttr = coreObj.geometry.attributes.position;
+            const corePosArr = corePosAttr.array;
+
+            for (let i = 0; i < CORE_PARTICLE_COUNT; i++) {
+                const v = vel[i];
+                // 位置更新
+                corePosArr[i * 3]     += v.x * dt;
+                corePosArr[i * 3 + 1] += v.y * dt;
+                corePosArr[i * 3 + 2] += v.z * dt;
+
+                // 速度衰减（空气阻力）：每帧损失 3% 速度
+                const drag = 0.97;
+                v.x *= drag;
+                v.y *= drag;
+                v.z *= drag;
+            }
+            corePosAttr.needsUpdate = true;
+
+            // 内核材质：前半段保持高亮，后半段快速熄灭
+            if (progress < 0.5) {
+                coreObj.material.opacity = 1.0;
+                coreObj.material.size = 0.38 * (1 - progress * 0.6);
+            } else {
+                const fadeProgress = (progress - 0.5) / 0.5; // 0~1
+                coreObj.material.opacity = 1 - fadeProgress * fadeProgress; // 二次方加速淡出
+                coreObj.material.size = 0.38 * (1 - progress * 0.85);
             }
 
-            posAttr.needsUpdate = true;
+            // --- 更新 Layer 2: 外围碎片 (索引 CORE_PARTICLE_COUNT ~ PARTICLE_COUNT-1) ---
+            const debrisObj = this.objects[1];
+            const debrisPosAttr = debrisObj.geometry.attributes.position;
+            const debrisPosArr = debrisPosAttr.array;
+            const GRAVITY = -4.0; // 重力加速度（单位/秒²）
 
-            // 整体透明度随时间衰减（先慢后快）
-            this.objects[0].material.opacity = 1 - Math.pow(progress, 1.5);
-            // 粒子大小随时间缩小
-            this.objects[0].material.size = 0.18 * (1 - progress * 0.7);
+            for (let i = 0; i < PARTICLE_COUNT - CORE_PARTICLE_COUNT; i++) {
+                const v = vel[CORE_PARTICLE_COUNT + i];
+                const idx = i;
+
+                // 位置更新
+                debrisPosArr[idx * 3]     += v.x * dt;
+                debrisPosArr[idx * 3 + 1] += v.y * dt;
+                debrisPosArr[idx * 3 + 2] += v.z * dt;
+
+                // 重力影响 Y 轴（外围碎片受重力下坠，产生抛物线轨迹）
+                v.y += GRAVITY * dt;
+
+                // 空气阻力：每帧损失 1.5% 速度
+                const drag = 0.985;
+                v.x *= drag;
+                v.y *= drag;
+                v.z *= drag;
+            }
+            debrisPosAttr.needsUpdate = true;
+
+            // 外围材质：整体透明度用三次缓出曲线（前期持久，后期消散）
+            const debrisOpacity = 1 - Math.pow(progress, 2.5);
+            debrisObj.material.opacity = debrisOpacity;
+            // 大小先略微膨胀再缩小（模拟散热过程）
+            const sizePulse = progress < 0.25
+                ? 1 + progress * 1.2          // 前段微胀
+                : 1.3 - (progress - 0.25) * 0.9; // 后段收缩
+            debrisObj.material.size = 0.16 * Math.max(0.3, sizePulse);
+
+            // --- 更新 Layer 3: 中心闪光球 ---
+            const flashObj = this.objects[2];
+            if (progress < 0.18) {
+                // 前段：从极小瞬间膨胀到最大（约 3 倍原始尺寸）
+                const p = progress / 0.18;
+                const expandEase = Math.sin(p * Math.PI * 0.5); // 0→1 平滑加速
+                flashObj.scale.setScalar(0.01 + expandEase * 3.0);
+                flashObj.material.opacity = 1.0 - p * 0.4; // 从 1.0 降到 0.6
+            } else if (progress < 0.40) {
+                // 中段：快速收缩并淡出
+                const localP = (progress - 0.18) / 0.22;
+                flashObj.scale.setScalar(3.0 * (1 - localP));
+                flashObj.material.opacity = 0.6 * (1 - localP);
+            } else {
+                // 后段：完全隐藏
+                flashObj.scale.setScalar(0.01);
+                flashObj.material.opacity = 0;
+            }
         },
 
         /**
          * 销毁粒子爆炸特效资源
-         * 从场景移除 Points 对象并释放几何体/材质内存
+         * 从场景移除所有 Points 和 Mesh 对象，释放几何体和材质内存
          * @returns {void}
          */
         dispose() {
