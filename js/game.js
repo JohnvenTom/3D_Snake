@@ -93,7 +93,19 @@ function gameLoop(timestamp) {
     }
 
     // === 1. 更新蛇身位置（步进 + 插值） ===
+    // 空格加速：临时缩小移动间隔，加速后立即恢复原值
+    const originalInterval = state.moveInterval;
+    if (state.isSpeedBoost) {
+        state.moveInterval = Math.max(
+            CONFIG.MIN_MOVE_INTERVAL,
+            state.moveInterval / CONFIG.SPEED_BOOST_MULTIPLIER
+        );
+    }
     const stepped = updateSnake(dt);
+    // 恢复原始间隔（加速只影响当前帧的步进判定，不永久改变速度等级）
+    if (state.isSpeedBoost) {
+        state.moveInterval = originalInterval;
+    }
 
     // === 2. 辅助线动画状态机 ===
     const ANIM_SPEED = 0.03; // 动画速度（每帧进度增量）

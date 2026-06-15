@@ -88,6 +88,14 @@ export function setupControls() {
         if (!state.isGameRunning) return;
 
         const key = event.key.toLowerCase();
+
+        // 空格键：按住加速
+        if (key === ' ' || event.code === 'Space') {
+            event.preventDefault(); // 防止页面滚动
+            state.isSpeedBoost = true;
+            return;
+        }
+
         let newDir = null;
 
         // Tab 切换操作模式
@@ -144,6 +152,13 @@ export function setupControls() {
         // 反向转向限制：新方向不能与当前方向相反（防止直接掉头）
         if (newDir && !isOppositeDirection(newDir, state.currentDirection)) {
             state.nextDirection.copy(newDir);
+        }
+    });
+
+    // 空格键松开：取消加速
+    document.addEventListener('keyup', (event) => {
+        if (event.key === ' ' || event.code === 'Space') {
+            state.isSpeedBoost = false;
         }
     });
 }
