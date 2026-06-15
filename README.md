@@ -1,148 +1,303 @@
-# 3D Snake // 三维贪吃蛇
+<p align="center">
+  <img src="https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Isometric%203D%20neon%20green%20snake%20made%20of%20cubes%20in%20a%20dark%20cube%20arena%20with%20glowing%20orange%20food%20sphere%20and%20red%20obstacle%20blocks%2C%20neon%20brutalist%20arcade%20style%2C%20dark%20background%20with%20grid%20lines%2C%20volumetric%20lighting%2C%20cyberpunk%20aesthetic%2C%20high%20quality%203D%20render&image_size=landscape_16_9" width="100%" alt="3D Snake Banner">
+</p>
+
+<h1 align="center">
+  <strong>3D SNAKE</strong>
+</h1>
+<p align="center">
+  <em>XYZ Axis-Aligned Grid System // Neon Brutalist Arcade</em>
+</p>
 
 <p align="center">
-  <strong>基于 Three.js 的三维空间贪吃蛇游戏 — XYZ 轴对齐网格坐标系统</strong>
+  <img src="https://img.shields.io/badge/Three.js-r128-1a1a1a?style=flat-square&logo=three.js&logoColor=white" alt="Three.js">
+  <img src="https://img.shields.io/badge/ES%20Modules-Native-0d1117?style=flat-square&logo=javascript&logoColor=f7df1e" alt="ES Modules">
+  <img src="https://img.shields.io/badge/Zero%20Build-Open%20in%20Browser-c8ff00?style=flat-square&color=0d1117" alt="Zero Build">
+  <img src="https://img.shields.io/badge/License-MIT-555?style=flat-square" alt="License">
 </p>
 
 ---
 
-## 项目简介
+## The Concept
 
-**3D Snake** 是一款在三维立方体空间中运行的贪吃蛇游戏。蛇的移动严格沿 XYZ 三轴进行（无斜向移动），玩家需要在一个 29x29x29 的网格空间内控制蛇吃掉食物、躲避边界与自身碰撞。
+> **把经典贪吃蛇从二维平面撕开，扔进一个 29x29x29 的三维立方体空间。**
 
-项目采用 **Neon Brutalist Arcade（霓虹粗野主义街机）** 视觉风格，配合平滑的轨道相机系统，提供沉浸式的三维游戏体验。
+蛇的移动严格锁定 **XYZ 三轴正交方向**——没有斜向、没有插值漂移。每一个实体（蛇身节、食物、障碍物）都栖息在整数格点上。逻辑层是离散的确定性判定；渲染层则是帧率无关的动态 lerp 插值，让每一次步进都如丝绸般顺滑。
 
-## 技术栈
+这不是一个 demo。这是一台完整的街机。
 
-| 技术 | 版本/说明 |
-|------|-----------|
-| **Three.js** | r128 (CDN) |
-| **JavaScript** | ES Modules (原生模块化) |
-| **HTML/CSS** | 原生 HTML5 + CSS3 自定义属性 |
-| **字体** | Unbounded (标题) + Space Mono (UI) |
+---
 
-> 无需构建工具，无需 npm install，直接用浏览器打开即可运行。
-
-## 核心特性
-
-### 网格坐标系统
-- 所有实体（蛇身、食物）严格位于整数格点上
-- 逻辑层使用离散网格坐标，渲染层通过帧率无关的动态 lerp 插值实现平滑视觉过渡
-- 从根本上消除浮点坐标带来的碰撞误判问题
-
-### 双控制模式
-- **WORLD 模式**：WASD+QE 对应固定世界坐标轴方向，适合熟悉三维空间的玩家
-- **CAMERA 模式**：W/S=屏幕上下、A/D=屏幕左右、Q/E=远离/靠近镜头，按键方向自动吸附到最近的主轴，更符合直觉操作
-- 按 `Tab` 键或点击 UI 按钮即可实时切换
-
-### 平滑轨道相机
-- 球坐标系轨道相机围绕蛇头运动
-- 鼠标左键拖拽旋转视角，滚轮缩放距离
-- 相机位置和 lookAt 目标均采用独立双级插值平滑，消除步进跳跃导致的画面抖动
-- 俯仰角受限防止相机翻转越过天顶
-
-### 食物辅助线动画
-- 每个食物位置生成 XYZ 三轴辅助线（带颜色区分：X=珊瑚橙 / Y=荧光绿 / Z=电蓝）
-- 出现时从中心向外生长（easeOutCubic 缓动）
-- 吃到后向中心收缩消失（easeInCubic 缓入），随后生成新食物
-
-### 动态速度机制
-- 初始移动间隔 0.28s/步，每吃一个食物加速 0.008s
-- 最快速度限制在 0.1s/步，保证可操作性
-
-## 操作指南
-
-### 键盘控制
-
-| 按键 | WORLD 模式 | CAMERA 模式 |
-|------|-----------|-------------|
-| `W` / `↑` | Z 轴负方向（向前） | 屏幕上方 |
-| `S` / `↓` | Z 轴正方向（向后） | 屏幕下方 |
-| `A` / `←` | X 轴负方向 | 屏幕左方 |
-| `D` / `→` | X 轴正方向 | 屏幕右方 |
-| `Q` | Y 轴正方向（上升） | 远离镜头（进入深处） |
-| `E` | Y 轴负方向（下降） | 靠近镜头（离开深处） |
-| `Tab` | 切换 WORLD ↔ CAMERA 控制模式 | 同左 |
-| `Enter` / `Space` | 开始游戏 / 重新开始 | 同左 |
-
-### 鼠标控制
-
-| 操作 | 功能 |
-|------|------|
-| 左键拖拽 | 旋转相机视角 |
-| 滚轮 | 缩放相机距离（12 ~ 60 单位） |
-
-## 项目结构
+## Architecture at a Glance
 
 ```
-3D_Snake/
-├── index.html              # 入口页面（UI 结构 + 模块加载）
-├── css/
-│   └── style.css           # 样式表（Neon Brutalist 设计风格）
-└── js/
-    ├── main.js             # 应用入口（DOM 引用绑定、全局事件）
-    ├── config.js           # 配置常量（参数集中管理）
-    ├── state.js            # 全局状态管理（单例状态对象）
-    ├── game.js             # 游戏主循环与生命周期管理
-    ├── scene.js            # Three.js 场景初始化
-    ├── snake.js            # 蛇体系统（创建/更新/增长/插值）
-    ├── food.js             # 食物系统（生成/辅助线/动画状态机）
-    ├── camera.js           # 轨道相机控制（球坐标/拖拽/缩放）
-    ├── controls.js         # 键盘控制（双模式/反向限制）
-    ├── collision.js        # 碰撞检测（食物/边界/自身）
-    ├── ui.js               # UI 面板数据刷新
-    └── utils.js            # 工具函数（方向判断/缓动函数等）
+index.html                    ← Single entry point (no bundler)
+│
+├── css/style.css             ← Neon Brutalist design system + VFX keyframes
+│
+└── js/                       ← 14 ES Modules, single-responsibility
+    │
+    ├── main.js               → DOM binding & global event bus
+    ├── config.js             → 40+ tunable parameters, centralized
+    ├── state.js              → Singleton state object, shared by reference
+    │
+    ├── game.js               → Game loop / lifecycle / pause machine
+    ├── scene.js              → Three.js scene initialization
+    ├── camera.js             → Orbital camera + shake integration
+    │
+    ├── snake.js              → Segment system (spawn / grow / lerp)
+    ├── food.js               → Food spawner + XYZ axes animation FSM
+    ├── obstacles.js          → K-means clustering + 8 shape templates
+    ├── collision.js          → Grid-coordinate exact-match detection
+    │
+    ├── controls.js           → Dual-mode input (WORLD / CAMERA)
+    ├── effects.js            → 5-layer eat VFX composition engine
+    ├── ui.js                 → Real-time panel data sync
+    └── utils.js              → Direction utils / easing functions
 ```
 
-### 架构设计要点
+**Design principles:**
+- `logic ≠ render` — 网格坐标负责精确判定，lerp 负责视觉欺骗
+- `frame-rate agnostic` — `performance.now()` deltaTime 贯穿全链路
+- `effect lifecycle pool` — 创建 → 逐帧 update → 到期 auto-dispose，零泄漏
+- `single source of truth` — `state.js` 唯一状态对象，所有模块引用共享
 
-- **ES Modules 原生模块化**：每个文件职责单一，通过 `import/export` 明确依赖关系
-- **集中配置**：所有可调参数统一在 `config.js` 管理，便于调优和扩展
-- **单例状态**：`state.js` 导出唯一状态对象，各模块通过引用共享状态
-- **逻辑/渲染分离**：网格坐标层负责精确判定，渲染层通过插值保证流畅视觉
-- **帧率无关设计**：使用 `performance.now()` 计算 deltaTime，确保不同刷新率下行为一致
+---
 
-## 快速开始
+## Feature Matrix
 
-### 方式一：直接打开（推荐）
+### Spatial Engine
 
-直接用浏览器打开 `index.html` 即可运行。
+| Layer | Mechanism |
+|:------|:----------|
+| **Coordinate** | Integer grid (x, y, z ∈ ℤ), arena = [-14, 14]³ |
+| **Movement** | 6-DOF axis-locked (±X, ±Y, ±Z), no diagonal |
+| **Interpolation** | Dynamic lerp per-frame, coefficient = `1 - (1 - k)^(dt * 60)` |
+| **Collision** | Exact integer match — zero floating-point error surface |
 
-### 方式二：本地服务器
+### Control Dualism
+
+<details>
+<summary><b>WORLD Mode</b> — 固定坐标轴映射</summary>
+
+| Key | Axis |
+|:---:|:----:|
+| W / ↑ | −Z (forward) |
+| S / ↓ | +Z (backward) |
+| A / ← | −X (left) |
+| D / → | +X (right) |
+| Q | +Y (ascend) |
+| E | −Y (descend) |
+
+*适合对三维空间有直觉的玩家。*
+</details>
+
+<details>
+<summary><b>CAMERA Mode</b> — 屏幕空间吸附</summary>
+
+| Key | Mapping |
+|:---:|:--------|
+| W / ↑ | Screen up → snap to nearest axis |
+| S / ↓ | Screen down → snap to nearest axis |
+| A / ← | Screen left → snap to nearest axis |
+| D / → | Screen right → snap to nearest axis |
+| Q | Away from camera (into depth) |
+| E | Toward camera (out of depth) |
+
+*按键方向自动吸附到最近的 XYZ 主轴，更符合直觉操作。*
+</details>
+
+> `Tab` — 实时切换模式 &emsp;|&emsp; `Esc` / `P` — 暂停/恢复 &emsp;|&emsp; 长按 `Space` — 2x 加速冲刺
+
+### Camera System
+
+球坐标系轨道相机围绕蛇头运动，**双级独立插值**：
+
+- **Position lerp** — 相机空间位置平滑过渡（`CAMERA_LERP_FACTOR = 0.08`）
+- **Target lerp** — lookAt 目标点平滑跟随蛇头
+- **Shake overlay** — 三组震屏偏移实时叠加：
+  - `getShakeOffset()` — 高频多轴位移抖动（三频正弦叠加）
+  - `getShakeRotation()` — Z 轴扭转偏移
+  - `getShakeZoomPunch()` — 弹性镜头推拉（过冲+收敛）
+
+俯仰角硬限位 `[0.15, π - 0.15]` 防止万向锁。
+
+### Obstacle Generation Engine
+
+每局游戏生成 **3 个结构化障碍物块**，采用两阶段算法：
+
+```
+Phase 1: K-means Cluster Center Selection
+├── Random candidates within ARENA_SIZE bounds
+├── Constraint: Manhattan(snake_head) ≥ 6
+├── Constraint: Distance(cluster_i, cluster_j) ≥ 12
+└── Max attempts: 1000 (fallback graceful degradation)
+
+Phase 2: Shape Template Instantiation
+├── 8 predefined geometric templates (randomly selected)
+│   ├── cross      — 十字形 (16 units)
+│   ├── lshape     — L 形拐角 (16 units)
+│   ├── tshape     — T 形横梁 (18 units)
+│   ├── zigzag     — Z 形折线 (18 units)
+│   ├── corner     — U 形围栏 (20 units)
+│   ├── plus       — 加号星形 (24 units)
+│   ├── staircase  — 阶梯上升 (16 units)
+│   └── diagonal   — 斜向团块 (22 units)
+├── Each template: unique contour, 3D spatial morphology
+└── Output: obstacleGridPositions[] → collision.js consumes
+```
+
+### VFX Composition Engine
+
+每次进食触发 **五层同步特效管线**：
+
+```
+triggerEatEffects(foodPosition)
+│
+├─ Layer A: Particle Burst (72 particles, 2 layers)
+│   ├─ Core sparks (16): white-gold, high-velocity radial, no gravity
+│   └─ Debris shell (56): orange→green gradient, parabolic fall, drag decay
+│
+├─ Layer B: Shockwave Rings (3 axial planes)
+│   ├─ XY ring (coral orange) — radar sweep expansion
+│   ├─ XZ ring (neon green) — delayed 50ms for rhythm
+│   └─ YZ ring (electric blue) — delayed 100ms
+│
+├─ Layer C: Energy Beams (6 lines)
+│   └─ food ↔ head connection, coral→green gradient, rapid pulse fade
+│
+├─ Layer D: Floating Score (+10 DOM text)
+│   └─ 3D→screen projection, CSS keyframe float-up animation
+│
+└─ Layer E: Screen Flash + Camera Shake
+    ├─ Phase 1 (0~8%):   Hard white flash, full opacity burst
+    ├─ Phase 2 (8~30%):  Neon green radial glow, screen blend mode
+    ├─ Phase 3 (30~100%): Residual falloff, cubic ease-out
+    └─ Shake: tri-axis displacement + rotation + zoom punch
+```
+
+All effects managed by an **object-pool lifecycle**: `activeEffects[]` → per-frame `update(elapsed, progress)` → auto `dispose()` on expiry.
+
+---
+
+## Configuration Surface
+
+<details>
+<summary><b>Arena & Gameplay</b></summary>
+
+| Parameter | Value | Domain |
+|:----------|:-----:|:-------|
+| `ARENA_SIZE` | `14` | Half-extent → total range [-14, +14] = 29³ grid |
+| `GRID_UNIT` | `1.0` | Cell size in world units |
+| `SEGMENT_SIZE` | `0.85` | Visual size per segment (< cell to avoid overlap) |
+| `INITIAL_LENGTH` | `4` | Starting segments (head inclusive) |
+| `BASE_MOVE_INTERVAL` | `0.28s` | Time per step at start |
+| `SPEED_INCREMENT` | `0.008s` | Interval reduction per food eaten |
+| `MIN_MOVE_INTERVAL` | `0.1s` | Speed ceiling (playability floor) |
+| `SPEED_BOOST_MULTIPLIER` | `2.0x` | Space-bar boost ratio |
+| `RENDER_LERP_FACTOR` | `0.5` | Base interpolation coefficient |
+</details>
+
+<details>
+<summary><b>Camera Orbit</b></summary>
+
+| Parameter | Value | Notes |
+|:----------|:-----:|:------|
+| `CAMERA_RADIUS` | `32` | Initial distance from head |
+| `CAMERA_MIN_RADIUS` | `12` | Zoom-in limit |
+| `CAMERA_MAX_RADIUS` | `60` | Zoom-out limit |
+| `CAMERA_LERP_FACTOR` | `0.08` | Smoothing (lower = more inertia) |
+| `CAMERA_ROTATE_SENSITIVITY` | `0.005` | Drag rotation gain |
+| `CAMERA_ZOOM_SENSITIVITY` | `0.8` | Scroll wheel gain |
+| `PHI limits` | `[0.15, π−0.15]` | Pitch clamp (anti-gimbal) |
+</details>
+
+<details>
+<summary><b>Obstacle System</b></summary>
+
+| Parameter | Value | Meaning |
+|:----------|:-----:|:--------|
+| `OBSTACLE_CLUSTER_COUNT` | `3` | Shape blocks per game |
+| `SAFE_DISTANCE_FROM_SNAKE` | `6` | Manhattan safety radius |
+| `MIN_CENTER_DISTANCE` | `12` | Inter-cluster separation |
+| `OBSTACLE_SIZE` | `0.9` | Per-unit visual size |
+| `COLOR_OBSTACLE` | `#8b0000` | Dark crimson red |
+</details>
+
+<details>
+<summary><b>Color Palette</b></summary>
+
+| Token | Hex | Role |
+|:------|:---:|:-----|
+| Background | `#0a0908` | Deep void black |
+| Snake Head | `#c8ff00` | Neon lime (emissive) |
+| Snake Body | `#7cb000` | Deep olive green |
+| Food | `#ff5733` | Coral orange (glow) |
+| Obstacle | `#8b0000` | Dark crimson |
+| Boundary/Grid | `#c8ff00` | Neon lime accent |
+</details>
+
+All tunables live in a single file: [config.js](js/config.js). Change one value, reload.
+
+---
+
+## Quick Start
 
 ```bash
-# Python 3
-python -m http.server 3000
+# Option 1: Just open it
+open index.html
 
-# Node.js (需要 http-server)
+# Option 2: Local server (recommended for module loading)
 npx http-server -p 3000
+# → http://localhost:3000
 ```
 
-然后访问 `http://localhost:3000`
+**Zero dependencies. Zero build step. Zero configuration.**  
+One HTML file, one browser tab, full experience.
 
-## 游戏规则
+---
 
-1. 点击 **Launch Game** 或按 `Enter` / `Space` 开始游戏
-2. 使用键盘控制蛇在三维空间中移动，吃掉橙色发光球体获得分数（每个 +10 分）
-3. 每吃一个食物蛇身增长一节，同时速度提升
-4. **失败条件**：
-   - 撞到空间边界 → 边界碰撞
-   - 撞到自己的身体 → 自身碰撞
-5. 游戏结束后可点击 **Play Again** 或按 `Enter` / `Space` 重新开始
+## Game Flow
 
-## 可配置参数（config.js）
+```
+┌─────────────┐    ┌──────────────────┐    ┌──────────────┐
+│  Launch     │──▶│                  │──▶│              │
+│  Game       │    │   ACTIVE LOOP    │    │  Game Over   │
+│  (Enter/Sp) │    │                  │    │  (3 reasons) │
+└─────────────┘    └──────────────────┘    └──────────────┘
+                         │                        │
+                    ┌────┴────┐              ┌────┴────┐
+                    │  Pause  │◀──(Esc/P)──▶│ Restart  │
+                    │ (render │              │ (Enter/  │
+                    │  only)  │              │  Space)  │
+                    └─────────┘              └─────────┘
+```
 
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `ARENA_SIZE` | 14 | 立方体空间半边长（总范围 -14 ~ +14） |
-| `GRID_UNIT` | 1.0 | 网格单元大小 |
-| `INITIAL_LENGTH` | 4 | 初始蛇身长度 |
-| `BASE_MOVE_INTERVAL` | 0.28 | 基础移动间隔（秒/步） |
-| `MIN_MOVE_INTERVAL` | 0.1 | 最快移动间隔上限 |
-| `SPEED_INCREMENT` | 0.008 | 每次进食后的加速量 |
-| `CAMERA_RADIUS` | 32 | 相机初始距离 |
-| `RENDER_LERP_FACTOR` | 0.5 | 渲染插值基础系数 |
+**Termination conditions:**
+- `BOUNDARY` — head exits the [-14, 14]³ cube
+- `SELF COLLISION` — head occupies any body segment's grid position
+- `OBSTACLE HIT` — head collides with any obstacle block
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Rationale |
+|:------|:-----------|:----------|
+| **3D Engine** | Three.js r128 (CDN) | Mature, lightweight, no build tools needed |
+| **Module System** | Native ES Modules (`import/export`) | Browser-native, zero bundler overhead |
+| **Styling** | Vanilla CSS3 + Custom Properties | Full control, no framework bloat |
+| **Typography** | Unbounded + Space Mono (Google Fonts) | Geometric brutalist headline + monospace UI |
+| **VFX Pipeline** | Three.js Points/Rings/Lines + DOM overlays + CSS keyframes | Hybrid 3D-DOM approach for maximum visual impact |
+
+---
 
 ## License
 
-MIT
+MIT © [tom1234567890](https://github.com/tom1234567890)
+
+---
+
+<p align="center">
+  <sub>Built with precision. Played with instinct.</sub>
+</p>
